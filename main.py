@@ -64,6 +64,16 @@ def unify(a, b):
         raise Exception("Function args not matched")
 
 
+def get_magic(op):
+    magics = {
+        'Add': '__add__',
+        'Sub': '__sub__',
+        'Mult': '__mul__',
+        'Div': '__div__',
+        'Mod': '__mod__',
+    }
+    return magics[type(op).__name__]
+
 
 def infer(ctx, e):
     if isinstance(e, type):
@@ -75,7 +85,7 @@ def infer(ctx, e):
     elif isinstance(e, ast.BinOp):
         left_type = infer(ctx, e.left)
         right_type = infer(ctx, e.right)
-        func_name = f"__{(type(e.op).__name__).lower()}__"
+        func_name = get_magic(e.op)
         typer = Typer()
         funcType = typer.get_type(f"builtins.{left_type}.{func_name}")
         argList = (right_type,)
