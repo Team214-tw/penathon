@@ -10,24 +10,6 @@ from base import Function
 
 class Context:
     env = dict()
-    #  class_methods = dict()
-    class_methods = {
-        float: {
-            '__add__': Function((float,), float),
-            '__sub__': Function((float,), float),
-            '__mult__': Function((float,), float),
-            '__div__': Function((float,), float),
-            '__mod__': Function((float,), float),
-        },
-        int: {
-            '__add__': Function((int,), int),
-            '__sub__': Function((int,), int),
-            '__mult__': Function((int,), int),
-            '__div__': Function((int,), int),
-            '__mod__': Function((int,), int),
-            '__eq__': Function((int,), int),
-        },
-    }
 
 
 class TypeVariable:
