@@ -52,16 +52,50 @@ class Typer:
                 data = {**data, **Typer._parse(i.body)}
                 #todo parse other branches
         return data
+
+    @staticmethod
+    def _find_file2(cur_path, splitted_name):
+        if len(splitted_name) == 0:
+            return "", -1, False
+        new_path = os.path.join(cur_path, splitted_name[0])
+        file_name, remain_len,  found = Typer._find_file2(new_path, splitted_name[1:]) 
+        if found:
+            return file_name, remain_len, found
+
+        file_name1 = os.path.join(cur_path, splitted_name[0], "__init__.pyi")
+        if os.path.isfile(file_name1):
+            return file_name1, len(splitted_name), True
         
-    def _record_type(self, module_name):
+        file_name2 = os.path.join(cur_path, splitted_name[0] + ".pyi")
+        if os.path.isfile(file_name2):
+            return file_name2, len(splitted_name), True
+        return "", -1, False
+
+    @staticmethod
+    def _find_file(module_name):
         dirs = ["3.7", "3.6", "3", "2and3", "2"]
         for d in dirs:
-            file_name = f"typeshed/stdlib/{d}/{module_name}.pyi"
-            if os.path.isfile(file_name):
-                with open(file_name) as f:
-                    x = ast.parse(f.read())
-                self.data[module_name] = Typer._parse(x.body)
+            file_name, remain_len, found = Typer._find_file2(f"typeshed/stdlib/{d}", module_name)
+            if found:
                 break
+        if not found:
+            raise Exception(f"{module_name} not found in typeshed")
+        return file_name, remain_len
+        
+        
+    def _record_type(self, name):
+        splitted_name = name.split(".")
+        file_name, remain_len = Typer._find_file(splitted_name[:-1])
+        with open(file_name) as f:
+            x = ast.parse(f.read())
+
+        cur = self.data
+        for i in splitted_name[:-remain_len]:
+            if i not in cur:
+                cur[i] = {}
+            cur = cur[i]
+        for key, val in Typer._parse(x.body).items():
+            cur[key] = val
         
     def _get_type(self, name):
         cur = self.data
@@ -73,7 +107,7 @@ class Typer:
         try:
             self._get_type(name)
         except KeyError:
-            self._record_type(name.split(".")[0])
+            self._record_type(name)
         return self._get_type(name)
         
 
@@ -83,3 +117,4 @@ if __name__ == "__main__":
     print(x.get_type("builtins.int.__sub__"))
     print(x.get_type("builtins.str.expandtabs"))
     print(x.get_type("os.path.isfile"))
+    print(x.get_type("random.randint"))
