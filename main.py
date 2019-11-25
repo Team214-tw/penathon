@@ -6,10 +6,6 @@ from dataclasses import dataclass, field
 from typing import Literal, Dict, Any, Union
 
 
-class Context:
-    env = dict()
-
-
 class TypeOperator(object):
     # Todo
     def __init__(self, name, types):
@@ -33,6 +29,17 @@ class Function:
 
     def __str__(self):
         return f"({tuple(map(str, self.from_type))} -> {self.to_type})"
+
+
+class Context:
+    env = dict()
+    #  class_methods = dict()
+    class_methods = {
+        int: {
+            '__add__': Function((int,), int),
+            '__sub__': Function((int,), int)
+        }
+    }
 
 
 class TypeVariable:
@@ -65,16 +72,30 @@ def unify(a, b):
         for p, q in zip(a.from_type, b.from_type):
             unify(p, q)
         unify(a.to_type, b.to_type)
+    raise Exception("Function args not matched")
 
 
-def infer(ctx, e: ast.Expr):
-    if isinstance(e, ast.Constant):
+def infer(ctx, e):
+            
+    if isinstance(e, type):
+        return e
+
+    elif isinstance(e, ast.Constant):
         return type(e.value)
 
-    if isinstance(e, ast.BinOp):
-        left_type = infer(ctx, e.left.value)
-        right_type = infer(ctx, e.right.value)
-
+    elif isinstance(e, ast.BinOp):
+        left_type = infer(ctx, e.left)
+        right_type = infer(ctx, e.right)
+        func_name = f"__{(type(e.op).__name__).lower()}__"
+        funcType = ctx.class_methods[left_type][func_name]
+        argList = (right_type,)
+        resultType = TypeVariable()
+        print(right_type)
+        unify(Function(argList, resultType), funcType)
+        if resultType.instance:
+            return resultType.instance
+        else:
+            return resultType
 
     elif isinstance(e, ast.Name):
         if e.id in ctx.env:
