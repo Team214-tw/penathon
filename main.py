@@ -3,7 +3,7 @@ import copy
 import uuid
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
-from typing import Literal, Dict, Any, Union
+from typing import Dict, Any, Union
 
 
 class TypeOperator(object):
@@ -28,6 +28,9 @@ class Function:
         self.to_type = to_type
 
     def __str__(self):
+        return f"({tuple(map(str, self.from_type))} -> {self.to_type})"
+
+    def __repr__(self):
         return f"({tuple(map(str, self.from_type))} -> {self.to_type})"
 
 
