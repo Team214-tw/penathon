@@ -1,6 +1,6 @@
 import ast
 import os
-from main import Function
+from base import Function
 
 class Typer:
     def __init__(self):

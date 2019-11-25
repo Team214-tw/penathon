@@ -3,45 +3,30 @@ import copy
 import uuid
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
-from typing import Dict, Any, Union
-
-
-class TypeOperator(object):
-    # Todo
-    def __init__(self, name, types):
-        self.name = name
-        self.types = types
-
-    def __str__(self):
-        num_types = len(self.types)
-        if num_types == 0:
-            return self.name
-        elif num_types == 2:
-            return "({0} {1} {2})".format(str(self.types[0]), self.name, str(self.types[1]))
-        else:
-            return "{0} {1}" .format(self.name, ' '.join(self.types))
-
-
-class Function:
-    def __init__(self, from_type, to_type):
-        self.from_type = from_type
-        self.to_type = to_type
-
-    def __str__(self):
-        return f"({tuple(map(str, self.from_type))} -> {self.to_type})"
-
-    def __repr__(self):
-        return f"({tuple(map(str, self.from_type))} -> {self.to_type})"
+from typing import Literal, Dict, Any, Union
+from Typer import Typer
+from base import Function
 
 
 class Context:
     env = dict()
     #  class_methods = dict()
     class_methods = {
+        float: {
+            '__add__': Function((float,), float),
+            '__sub__': Function((float,), float),
+            '__mult__': Function((float,), float),
+            '__div__': Function((float,), float),
+            '__mod__': Function((float,), float),
+        },
         int: {
             '__add__': Function((int,), int),
-            '__sub__': Function((int,), int)
-        }
+            '__sub__': Function((int,), int),
+            '__mult__': Function((int,), int),
+            '__div__': Function((int,), int),
+            '__mod__': Function((int,), int),
+            '__eq__': Function((int,), int),
+        },
     }
 
 
@@ -75,25 +60,26 @@ def unify(a, b):
         for p, q in zip(a.from_type, b.from_type):
             unify(p, q)
         unify(a.to_type, b.to_type)
-    raise Exception("Function args not matched")
+    else:
+        raise Exception("Function args not matched")
+
 
 
 def infer(ctx, e):
-            
     if isinstance(e, type):
         return e
 
     elif isinstance(e, ast.Constant):
-        return type(e.value)
+        return type(e.value).__name__
 
     elif isinstance(e, ast.BinOp):
         left_type = infer(ctx, e.left)
         right_type = infer(ctx, e.right)
         func_name = f"__{(type(e.op).__name__).lower()}__"
-        funcType = ctx.class_methods[left_type][func_name]
+        typer = Typer()
+        funcType = typer.get_type(f"builtins.{left_type}.{func_name}")
         argList = (right_type,)
         resultType = TypeVariable()
-        print(right_type)
         unify(Function(argList, resultType), funcType)
         if resultType.instance:
             return resultType.instance
