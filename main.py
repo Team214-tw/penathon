@@ -42,6 +42,8 @@ def get_magic(op):
         'Mult': '__mul__',
         'Div': '__div__',
         'Mod': '__mod__',
+        'Or': '__or__',
+        'And': '__and__',
     }
     return magics[type(op).__name__]
 
@@ -60,6 +62,24 @@ def infer(ctx, e):
 
     elif isinstance(e, ast.Constant):
         return type(e.value).__name__
+
+    elif isinstance(e, ast.BoolOp):
+        left_type = infer(ctx, e.left)
+        right_type = infer(ctx, e.right)
+        func_name = get_magic(e.op)
+        typer = Typer()
+        try:
+            funcType = typer.get_type(f"{left_type}.{func_name}")
+        except KeyError:
+            raise Exception(f"{left_type} object has no method {func_name}")
+
+        argList = (right_type,)
+        resultType = TypeVariable()
+        unify(Function(argList, resultType), funcType)
+        if resultType.instance:
+            return resultType.instance
+        else:
+            return resultType
 
     elif isinstance(e, ast.BinOp):
         left_type = infer(ctx, e.left)
@@ -172,7 +192,7 @@ def infer(ctx, e):
         return 'attribute'
 
     else:
-        print(e)
+        print(e, '')
 
 
 
