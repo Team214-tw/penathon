@@ -1,27 +1,16 @@
 import ast
+import _ast
 import copy
 import uuid
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from typing import Literal, Dict, Any, Union
 from Typer import Typer
-from base import Function
+from base import Function, TypeVariable
 
 
 class Context:
     env = dict()
-
-
-class TypeVariable:
-    def __init__(self):
-        self.id = uuid.uuid4()
-        self.instance = None
-
-    def __str__(self):
-        if self.instance:
-            return f"{str(self.instance)}"
-        else:
-            return f"T{str(self.id).split('-')[0]}"
 
 
 def unify(a, b):
@@ -56,6 +45,14 @@ def get_magic(op):
     }
     return magics[type(op).__name__]
 
+def get_func_name(ctx, func):
+    if 'attr' in dir(func):
+        return f"{get_func_name(ctx, func.value)}.{func.attr}"
+    elif isinstance(func, _ast.Name):
+        return infer(ctx, func)
+    else:
+        return type(func).__name__.lower()
+
 
 def infer(ctx, e):
     if isinstance(e, type):
@@ -69,7 +66,11 @@ def infer(ctx, e):
         right_type = infer(ctx, e.right)
         func_name = get_magic(e.op)
         typer = Typer()
-        funcType = typer.get_type(f"builtins.{left_type}.{func_name}")
+        try:
+            funcType = typer.get_type(f"{left_type}.{func_name}")
+        except KeyError:
+            raise Exception(f"{left_type} object has no method {func_name}")
+
         argList = (right_type,)
         resultType = TypeVariable()
         unify(Function(argList, resultType), funcType)
@@ -82,7 +83,12 @@ def infer(ctx, e):
         if e.id in ctx.env:
             return ctx.env[e.id]
         else:
-            raise Exception(f"Unbound var {e.id}")
+            typer = Typer()
+            try:
+                funcType = typer.get_type(e.id)
+                return funcType
+            except KeyError:
+                raise Exception(f"Unbound var {e.id}")
 
     elif isinstance(e, ast.FunctionDef):
         newCtx = copy.deepcopy(ctx)
@@ -119,8 +125,12 @@ def infer(ctx, e):
         return inferredType
 
     elif isinstance(e, ast.Call):
-        funcType = infer(ctx, e.func)
-        argType = infer(ctx, e.args[0])
+        func_name = get_func_name(ctx, e.func)
+        funcType = infer(ctx, ast.Name(func_name))
+        if (len(e.args)) > 0:
+            argType = infer(ctx, e.args[0])
+        else:
+            argType = ()
         argList = list()
         for i in e.args:
             argType = infer(ctx, i)
@@ -135,6 +145,35 @@ def infer(ctx, e):
 
     elif isinstance(e, ast.Expr):
         return infer(ctx, e.value)
+
+    elif isinstance(e, _ast.Import):
+        for i in e.names:
+            asname = i.asname or i.name
+            ctx.env[asname] = i.name
+
+    elif isinstance(e, _ast.ImportFrom):
+        for i in e.names:
+            asname = i.asname or i.name
+            ctx.env[asname] = f"{e.module}.{i.name}"
+
+    elif isinstance(e, _ast.List):
+        return 'list'
+
+    elif isinstance(e, _ast.Dict):
+        return 'dict'
+
+    elif isinstance(e, _ast.Set):
+        return 'set'
+
+    elif isinstance(e, _ast.Tuple):
+        return 'tuple'
+
+    elif isinstance(e, _ast.Attribute):
+        return 'attribute'
+
+    else:
+        print(e)
+
 
 
 def main():

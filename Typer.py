@@ -1,6 +1,8 @@
 import ast
+import builtins
 import os
-from base import Function
+from base import Function, TypeVariable
+from typing import TypeVar
 
 class Typer:
     def __init__(self):
@@ -14,17 +16,28 @@ class Typer:
                 continue
             anno = i.annotation
             if isinstance(anno, ast.Name):
-                from_type.append(i.annotation.id)
+                if anno.id == '_T':
+                    from_type.append(TypeVariable())
+                else:
+                    from_type.append(anno.id)
             elif isinstance(anno, ast.Subscript):
-                return ("todo",)
+                return (anno.value.id.lower(),)
         return tuple(from_type)
 
     @staticmethod
     def _parse_ret(node):
         if isinstance(node, ast.Name):
-            return node.id
+            if node.id == '_T':
+                return TypeVariable()
+            else:
+                return node.id
         elif isinstance(node, ast.Subscript):
-            return "todo"
+            return node.value.id.lower()
+
+        elif isinstance(node, ast.Constant):
+            if not node.value:
+                return 'None'
+
 
     @staticmethod
     def _parse_func(node):
@@ -85,6 +98,8 @@ class Typer:
         
     def _record_type(self, name):
         splitted_name = name.split(".")
+        if  splitted_name[0] in dir(builtins): 
+            splitted_name = ['builtins'] + splitted_name
         file_name, remain_len = Typer._find_file(splitted_name[:-1])
         with open(file_name) as f:
             x = ast.parse(f.read())
@@ -98,8 +113,11 @@ class Typer:
             cur[key] = val
         
     def _get_type(self, name):
+        splitted_name = name.split(".")
+        if  splitted_name[0] in dir(builtins): 
+            splitted_name = ['builtins'] + splitted_name
         cur = self.data
-        for i in name.split("."):
+        for i in splitted_name:
             cur = cur[i]
         return cur
 
@@ -113,8 +131,9 @@ class Typer:
 
 if __name__ == "__main__":
     x = Typer()
-    print(x.get_type("builtins.int.__add__"))
-    print(x.get_type("builtins.int.__sub__"))
-    print(x.get_type("builtins.str.expandtabs"))
+    print(x.get_type("int.__add__"))
+    print(x.get_type("int.__sub__"))
+    print(x.get_type("list.append"))
+    print(x.get_type("str.expandtabs"))
     print(x.get_type("os.path.isfile"))
     print(x.get_type("random.randint"))
