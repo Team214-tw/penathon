@@ -124,6 +124,8 @@ def infer(ctx, e):
         for i in range(len(argList)):
             if isinstance(argList[i].instance, str):
                 e.args.args[i].annotation = ast.Name(argList[i].instance)
+        if isinstance(bodyType, str):
+            e.returns = ast.Name(bodyType)
                 
         return inferredType
 
