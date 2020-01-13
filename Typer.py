@@ -100,6 +100,8 @@ class Typer:
                 data[i.name] = Typer._parse_func(i)
             elif isinstance(i, ast.If):
                 data = {**data, **Typer._parse_if(i)}
+            elif isinstance(i, ast.AnnAssign):
+                data[i.target.id] = Typer._parse_anno(i.annotation)
         return data
 
     @staticmethod
@@ -172,9 +174,7 @@ if __name__ == "__main__":
     print(x.get_type("str.expandtabs"))
     print(x.get_type("os.path.isfile"))
 
-    print(x.get_type("object.__dict__"))
-    print(x.get_type("object.__doc__"))
-    print(x.get_type("object.__dir__"))
+    print(x.get_type("os.path.altsep"))
     # import json
 
     # print(json.dumps(x.data, default=lambda o: str(o)))
