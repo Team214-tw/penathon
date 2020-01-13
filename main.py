@@ -2,6 +2,7 @@ import ast
 import _ast
 import copy
 import uuid
+import astor
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from typing import Literal, Dict, Any, Union
@@ -18,12 +19,10 @@ def unify(a, b):
         return
 
     if isinstance(a, TypeVariable):
-        if a != b:
-            a.instance = b
+        a.instance = b
 
     elif isinstance(b, TypeVariable):
-        if a != b:
-            b.instance = a
+        b.instance = a
 
     elif isinstance(a, Function) and isinstance(b, Function):
         if len(a.from_type) != len(b.from_type):
@@ -122,6 +121,10 @@ def infer(ctx, e):
         bodyType = infer(newCtx, e.body)
         inferredType = Function(argList, bodyType)
         ctx.env[e.name] = inferredType
+        for i in range(len(argList)):
+            if isinstance(argList[i].instance, str):
+                e.args.args[i].annotation = ast.Name(argList[i].instance)
+                
         return inferredType
 
     elif isinstance(e, list):
@@ -192,7 +195,7 @@ def infer(ctx, e):
         return 'attribute'
 
     else:
-        print(e, '')
+        pass
 
 
 
@@ -210,6 +213,7 @@ def main():
             print(i.lineno, infer(ctx, i))
         else:
             print(i.lineno, infer(ctx, i))
+    print(astor.to_source(x), end="")
 
 
 if __name__ == "__main__":
