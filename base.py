@@ -54,6 +54,15 @@ class Tuple:
         return "tuple"
 
 
+class Union:
+    def __init__(self, type_list):
+        self.Ts = type_list
+
+    def __str__(self):
+        Ts_str = ", ".join(str(x) for x in self.Ts)
+        return f"Union[{Ts_str}]"
+
+
 class TypeOperator(object):
     # Todo
     def __init__(self, name, types):

@@ -1,13 +1,47 @@
 import ast
+import copy
+
+from base import Constant, Dict, Function, List, Set, Tuple, TypeVar, Union
 
 
 class Inferer:
     def __init__(self):
-        env = dict()
+        self.env = dict()
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
-            pass
+            envBak = copy.deepcopy(self.env)
+
+            # create type variables for each argument
+            argList = list()
+            for i in e.args.args:
+                argName = i.arg
+                argTypeVar = TypeVar()
+                self.env[argName] = argTypeVar
+                argList.append(argTypeVar)
+
+            # infer body type
+            infBodyType = []
+            for i in e.body:
+                if isinstance(i, ast.Return):
+                    infBodyType.append(self.infer_stmt(i))
+                else:
+                    self.infer_stmt(i)
+
+            # generate body type
+            if len(infBodyType) == 0:
+                bodyType = None
+            elif len(infBodyType) == 1:
+                bodyType = infBodyType[0]
+            else:
+                bodyType = Union(infBodyType)
+            inferredType = Function(from_type=argList, to_type=bodyType)
+
+            # context switch back
+            self.env = envBak
+            self.env[e.name] = inferredType
+
+            return inferredType
 
         elif isinstance(e, ast.AsyncFunctionDef):
             pass
@@ -16,13 +50,17 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Return):
-            pass
+            return self.infer_expr(e.value)
 
         elif isinstance(e, ast.Delete):
             pass
 
         elif isinstance(e, ast.Assign):
-            pass
+            valueType = self.infer_expr(e.value)
+            for t in e.targets:
+                varName = t.id
+                self.env[varName] = valueType
+            return valueType
 
         elif isinstance(e, ast.AugAssign):
             pass
@@ -58,10 +96,14 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Import):
-            pass
+            for i in e.names:
+                asname = i.asname or i.name
+                self.env[asname] = i.name
 
         elif isinstance(e, ast.ImportFrom):
-            pass
+            for i in e.names:
+                asname = i.asname or i.name
+                self.env[asname] = f"{e.module}.{i.name}"
 
         elif isinstance(e, ast.Global):
             pass
@@ -70,7 +112,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Expr):
-            pass
+            return self.infer_expr(e.value)
 
         elif isinstance(e, ast.Pass):
             pass
@@ -98,16 +140,46 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Lambda):
-            pass
+            envBak = copy.deepcopy(self.env)
+
+            # create type variables for each argument
+            argList = list()
+            for i in e.args.args:
+                argName = i.arg
+                argTypeVar = TypeVar()
+                self.env[argName] = argTypeVar
+                argList.append(argTypeVar)
+
+            # infer body type
+            infBodyType = []
+            for i in e.body:
+                if isinstance(i, ast.Return):
+                    infBodyType.append(self.infer_stmt(i))
+                else:
+                    self.infer_stmt(i)
+
+            # generate body type
+            if len(infBodyType) == 0:
+                bodyType = None
+            elif len(infBodyType) == 1:
+                bodyType = infBodyType[0]
+            else:
+                bodyType = Union(infBodyType)
+            inferredType = Function(from_type=argList, to_type=bodyType)
+
+            # context switch back
+            self.env = envBak
+
+            return inferredType
 
         elif isinstance(e, ast.IfExp):
             pass
 
         elif isinstance(e, ast.Dict):
-            pass
+            return Dict()
 
         elif isinstance(e, ast.Set):
-            pass
+            return Set()
 
         elif isinstance(e, ast.ListComp):
             pass
@@ -134,7 +206,21 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Call):
-            pass
+            # get function type
+            funcName = self._get_func_name(e.func)
+            funcType = self.infer_expr(ast.Name(funcName))
+
+            # infer call type
+            argList = list()
+            for i in e.args:
+                argType = infer(i)
+                argList.append(argType)
+            resultType = TypeVar()
+
+            # infer def type and result type
+            self._unify(Function(argList, resultType), funcType)
+
+            return resultType
 
         elif isinstance(e, ast.FormattedValue):
             pass
@@ -143,7 +229,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Constant):
-            pass
+            return Constant(value=e.value)
 
         elif isinstance(e, ast.Attribute):
             pass
@@ -155,13 +241,53 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            pass
+            if e.id in self.env:
+                return self.env[e.id]
+            else:
+                # typer = Typer()
+                # try:
+                #     funcType = typer.get_type(e.id)
+                #     return funcType
+                # except KeyError:
+                #     raise Exception(f"Unbound var {e.id}")
+                raise Exception(f"Unbound var {e.id}")
 
         elif isinstance(e, ast.List):
-            pass
+            return List()
 
         elif isinstance(e, ast.Tuple):
-            pass
+            return Tuple()
 
         else:
             raise Exception(f"{e.lineno}: Unsupported syntax")
+
+    # helper
+    def _unify(self, a, b):
+        if a == b:
+            return
+
+        if isinstance(a, TypeVar):
+            a.instance = b
+
+        elif isinstance(b, TypeVar):
+            b.instance = a
+
+        elif isinstance(a, Function) and isinstance(b, Function):
+            if len(a.from_type) != len(b.from_type):
+                raise Exception("Function args not matched")
+            for p, q in zip(a.from_type, b.from_type):
+                self._unify(p, q)
+            self._unify(a.to_type, b.to_type)
+
+        else:
+            raise Exception("Function args not matched")
+
+    def _get_func_name(self, func):
+        # a.b.c()
+        if isinstance(func, ast.Attribute):
+            return f"{self._get_func_name(func.value)}.{func.attr}"
+        # a()
+        elif isinstance(func, ast.Name):
+            return func.id
+        else:
+            raise Exception("Cannot get function name")
