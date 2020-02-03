@@ -1,8 +1,7 @@
 import ast
 import builtins
 import os
-from base import Function, TypeVariable
-from typing import TypeVar
+from base import Function, TypeVar
 import sys
 
 
@@ -19,7 +18,7 @@ class Typer:
             anno = i.annotation
             if isinstance(anno, ast.Name):
                 if anno.id == "_T":
-                    from_type.append(TypeVariable())
+                    from_type.append(TypeVar())
                 else:
                     from_type.append(anno.id)
             elif isinstance(anno, ast.Subscript):
@@ -30,7 +29,7 @@ class Typer:
     def _parse_anno(node):
         if isinstance(node, ast.Name):
             if node.id == "_T":
-                return TypeVariable()
+                return TypeVar()
             else:
                 return node.id
         elif isinstance(node, ast.Subscript):

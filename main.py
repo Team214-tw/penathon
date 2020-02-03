@@ -1,26 +1,21 @@
 import ast
 import copy
-import uuid
 import astor
 from argparse import ArgumentParser
-from dataclasses import dataclass, field
-from typing import Literal, Dict, Any, Union
 from Typer import Typer
-from base import Function, TypeVariable
-
-
-class Context:
-    env = dict()
+from base import Function, TypeVar
+from base import List, Dict, Set, Tuple, Constant
+from inferer import Inferer
 
 
 def unify(a, b):
     if a == b:
         return
 
-    if isinstance(a, TypeVariable):
+    if isinstance(a, TypeVar):
         a.instance = b
 
-    elif isinstance(b, TypeVariable):
+    elif isinstance(b, TypeVar):
         b.instance = a
 
     elif isinstance(a, Function) and isinstance(b, Function):
@@ -55,10 +50,9 @@ def get_func_name(ctx, func):
         return type(func).__name__.lower()
 
 
-def infer(ctx, e):
-    # if isinstance(e, type):
-    #     return e
 
+def inferOld(ctx, e):
+    # Base Case
     if isinstance(e, ast.Name):
         if e.id in ctx.env:
             return ctx.env[e.id]
@@ -71,24 +65,20 @@ def infer(ctx, e):
             # except KeyError:
             #     raise Exception(f"Unbound var {e.id}")
 
-    # Base Case
     elif isinstance(e, ast.List):
-        return 'list'  # undone
+        return List()
 
     elif isinstance(e, ast.Dict):
-        return 'dict'  # undone
+        return Dict()
 
     elif isinstance(e, ast.Set):
-        return 'set'  # undone
+        return Set()
 
     elif isinstance(e, ast.Tuple):
-        return 'tuple'  # undone
-
-    elif isinstance(e, ast.Attribute):
-        return 'attribute'  # undone
+        return Tuple()
 
     elif isinstance(e, ast.Constant):
-        return type(e.value).__name__  # undone
+        return Constant(value=e.value)
 
     # Top-level
     elif isinstance(e, ast.Expr):
@@ -97,7 +87,8 @@ def infer(ctx, e):
     elif isinstance(e, ast.Assign):
         valueType = infer(ctx, e.value)
         for t in e.targets:
-            ctx.env[t.id] = valueType
+            varName = t.id
+            ctx.env[varName] = valueType
         return valueType
 
     elif isinstance(e, ast.FunctionDef):
@@ -107,14 +98,19 @@ def infer(ctx, e):
         argList = list()
         for i in e.args.args:
             argName = i.arg
-            argTypeVar = TypeVariable()
+            argTypeVar = TypeVar()
             newCtx.env[argName] = argTypeVar
             argList.append(argTypeVar)
 
         # infer
-        bodyType = infer(newCtx, e.body)
+        bodyType = None
+        for body in e.body:
+            if isinstance(body, ast.Return):
+                bodyType = infer(newCtx, body)
+            else:
+                infer(newCtx, body)
         inferredType = Function(from_type=argList, to_type=bodyType)
-        ctx.env[e.name] = inferredType  # undone
+        ctx.env[e.name] = inferredType
 
         # generate type informations
         for i, argTypeVar in enumerate(argList):
@@ -138,14 +134,20 @@ def infer(ctx, e):
     elif isinstance(e, ast.Return):
         return infer(ctx, e.value)
 
+    elif isinstance(e, ast.If):
+        pass
+
     # Expression
+    # elif isinstance(e, ast.Attribute):
+    #     return 'attribute'  # undone
+
     elif isinstance(e, ast.Lambda):
         newCtx = copy.deepcopy(ctx)
 
         argList = list()
         for i in e.args.args:
             argName = i.arg
-            argTypeVar = TypeVariable()
+            argTypeVar = TypeVar()
             newCtx.env[argName] = argTypeVar
             argList.append(argTypeVar)
 
@@ -160,7 +162,7 @@ def infer(ctx, e):
         for i in e.args:
             argType = infer(ctx, i)
             argList.append(argType)
-        resultType = TypeVariable()
+        resultType = TypeVar()
         unify(Function(argList, resultType), funcType)
         return resultType
 
@@ -175,7 +177,7 @@ def infer(ctx, e):
     #         raise Exception(f"{left_type} object has no method {func_name}")
 
     #     argList = (right_type,)
-    #     resultType = TypeVariable()
+    #     resultType = TypeVar()
     #     unify(Function(argList, resultType), funcType)
     #     if resultType.instance:
     #         return resultType.instance
@@ -193,7 +195,7 @@ def infer(ctx, e):
     #         raise Exception(f"{left_type} object has no method {func_name}")
 
     #     argList = (right_type,)
-    #     resultType = TypeVariable()
+    #     resultType = TypeVar()
     #     print(Function(argList, resultType), funcType)
     #     unify(Function(argList, resultType), funcType)
     #     if resultType.instance:
@@ -217,9 +219,9 @@ def main():
     with open(input_file) as f:
         x = ast.parse(f.read())
 
-    ctx = Context()
+    inferer = Inferer()
     for i in x.body:
-        print(i.lineno, infer(ctx, i))
+        print(i.lineno, inferer.infer_stmt(i))
     print(astor.to_source(x), end="")
 
 
