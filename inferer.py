@@ -2,11 +2,13 @@ import ast
 import copy
 
 from base import Constant, Dict, Function, List, Set, Tuple, TypeVar, Union
+from Typer import Typer
 
 
 class Inferer:
     def __init__(self):
         self.env = dict()
+        self.seeker = Typer()
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
@@ -134,7 +136,21 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.BinOp):
-            pass
+            # get op function from left side
+            leftType = self.infer_expr(e.left)
+            rightType = self.infer_expr(e.right)
+            funcName = self._get_magic(e.op)
+            try:
+                funcType = self.seeker.get_type(f"{leftType}.{funcName}")
+            except KeyError:
+                raise Exception(f"{leftType} object has no method {funcName}")
+
+            # infer and perform type coercion
+            argList = (rightType,)
+            resultType = TypeVar()
+            self._unify(Function(argList, resultType), funcType)
+
+            return resultType
 
         elif isinstance(e, ast.UnaryOp):
             pass
@@ -262,8 +278,10 @@ class Inferer:
             raise Exception(f"{e.lineno}: Unsupported syntax")
 
     # helper
-    def _unify(self, a, b):
-        if a == b:
+    @staticmethod
+    def _unify(a, b):
+        # Type Seeker will seek str type
+        if str(a) == str(b):
             return
 
         if isinstance(a, TypeVar):
@@ -276,18 +294,32 @@ class Inferer:
             if len(a.from_type) != len(b.from_type):
                 raise Exception("Function args not matched")
             for p, q in zip(a.from_type, b.from_type):
-                self._unify(p, q)
-            self._unify(a.to_type, b.to_type)
+                Inferer._unify(p, q)
+            Inferer._unify(a.to_type, b.to_type)
 
         else:
-            raise Exception("Function args not matched")
+            raise Exception(f"Function args: {a} and {b} are not matched")
 
-    def _get_func_name(self, func):
+    @staticmethod
+    def _get_func_name(func):
         # a.b.c()
         if isinstance(func, ast.Attribute):
-            return f"{self._get_func_name(func.value)}.{func.attr}"
+            return f"{Inferer._get_func_name(func.value)}.{func.attr}"
         # a()
         elif isinstance(func, ast.Name):
             return func.id
         else:
             raise Exception("Cannot get function name")
+
+    @staticmethod
+    def _get_magic(op):
+        magics = {
+            'Add': '__add__',
+            'Sub': '__sub__',
+            'Mult': '__mul__',
+            'Div': '__div__',
+            'Mod': '__mod__',
+            'Or': '__or__',
+            'And': '__and__',
+        }
+        return magics[type(op).__name__]
