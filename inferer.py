@@ -1,7 +1,7 @@
 import ast
 import copy
 
-from base import Constant, Dict, Function, List, Set, Tuple, TypeVar, Union
+from base import Constant, Dict, FunctionDef, List, Set, Tuple, TypeVar, Union
 from Typer import Typer
 
 
@@ -9,6 +9,7 @@ class Inferer:
     def __init__(self):
         self.env = dict()
         self.seeker = Typer()
+        self.visitReturn = False
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
@@ -25,10 +26,10 @@ class Inferer:
             # infer body type
             infBodyType = []
             for i in e.body:
-                if isinstance(i, ast.Return):
-                    infBodyType.append(self.infer_stmt(i))
-                else:
-                    self.infer_stmt(i)
+                potentialType = self.infer_stmt(i)
+                if self.visitReturn:
+                    infBodyType.append(potentialType)
+                    self.visitReturn = False
 
             # generate body type
             if len(infBodyType) == 0:
@@ -37,7 +38,7 @@ class Inferer:
                 bodyType = infBodyType[0]
             else:
                 bodyType = Union(infBodyType)
-            inferredType = Function(from_type=argList, to_type=bodyType)
+            inferredType = FunctionDef(from_type=argList, to_type=bodyType)
 
             # context switch back
             self.env = envBak
@@ -52,6 +53,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Return):
+            self.visitReturn = True
             return self.infer_expr(e.value)
 
         elif isinstance(e, ast.Delete):
@@ -80,7 +82,22 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.If):
-            pass
+            # infer body type
+            infBodyType = []
+            for i in e.body:
+                potentialType = self.infer_stmt(i)
+                if self.visitReturn:
+                    infBodyType.append(potentialType)
+
+            # generate body type
+            if len(infBodyType) == 0:
+                bodyType = None
+            elif len(infBodyType) == 1:
+                bodyType = infBodyType[0]
+            else:
+                bodyType = Union(infBodyType)
+
+            return bodyType
 
         elif isinstance(e, ast.With):
             pass
@@ -148,7 +165,7 @@ class Inferer:
             # infer and perform type coercion
             argList = (rightType,)
             resultType = TypeVar()
-            self._unify(Function(argList, resultType), funcType)
+            self._unify(FunctionDef(argList, resultType), funcType)
 
             return resultType
 
@@ -167,21 +184,8 @@ class Inferer:
                 argList.append(argTypeVar)
 
             # infer body type
-            infBodyType = []
-            for i in e.body:
-                if isinstance(i, ast.Return):
-                    infBodyType.append(self.infer_stmt(i))
-                else:
-                    self.infer_stmt(i)
-
-            # generate body type
-            if len(infBodyType) == 0:
-                bodyType = None
-            elif len(infBodyType) == 1:
-                bodyType = infBodyType[0]
-            else:
-                bodyType = Union(infBodyType)
-            inferredType = Function(from_type=argList, to_type=bodyType)
+            bodyType = self.infer_expr(e.body)
+            inferredType = FunctionDef(from_type=argList, to_type=bodyType)
 
             # context switch back
             self.env = envBak
@@ -229,12 +233,12 @@ class Inferer:
             # infer call type
             argList = list()
             for i in e.args:
-                argType = infer(i)
+                argType = self.infer_expr(i)
                 argList.append(argType)
             resultType = TypeVar()
 
             # infer def type and result type
-            self._unify(Function(argList, resultType), funcType)
+            self._unify(FunctionDef(argList, resultType), funcType)
 
             return resultType
 
@@ -260,13 +264,12 @@ class Inferer:
             if e.id in self.env:
                 return self.env[e.id]
             else:
-                # typer = Typer()
-                # try:
-                #     funcType = typer.get_type(e.id)
-                #     return funcType
-                # except KeyError:
-                #     raise Exception(f"Unbound var {e.id}")
-                raise Exception(f"Unbound var {e.id}")
+                typer = Typer()
+                try:
+                    funcType = typer.get_type(e.id)
+                    return funcType
+                except KeyError:
+                    raise Exception(f"Unbound var {e.id}")
 
         elif isinstance(e, ast.List):
             return List()
@@ -278,6 +281,21 @@ class Inferer:
             raise Exception(f"{e.lineno}: Unsupported syntax")
 
     # helper
+    def _get_func_name(self, func):
+        # a.b.c()
+        if isinstance(func, ast.Attribute):
+            return f"{self._get_func_name(func.value)}.{func.attr}"
+        # a()
+        elif isinstance(func, ast.Name):
+            funcType = self.infer_expr(func)
+            if isinstance(funcType, FunctionDef):
+                return func.id
+            else:
+                return funcType
+        # [].append
+        else:
+            return type(func).__name__.lower()
+
     @staticmethod
     def _unify(a, b):
         # Type Seeker will seek str type
@@ -290,7 +308,7 @@ class Inferer:
         elif isinstance(b, TypeVar):
             b.instance = a
 
-        elif isinstance(a, Function) and isinstance(b, Function):
+        elif isinstance(a, FunctionDef) and isinstance(b, FunctionDef):
             if len(a.from_type) != len(b.from_type):
                 raise Exception("Function args not matched")
             for p, q in zip(a.from_type, b.from_type):
@@ -299,17 +317,6 @@ class Inferer:
 
         else:
             raise Exception(f"Function args: {a} and {b} are not matched")
-
-    @staticmethod
-    def _get_func_name(func):
-        # a.b.c()
-        if isinstance(func, ast.Attribute):
-            return f"{Inferer._get_func_name(func.value)}.{func.attr}"
-        # a()
-        elif isinstance(func, ast.Name):
-            return func.id
-        else:
-            raise Exception("Cannot get function name")
 
     @staticmethod
     def _get_magic(op):

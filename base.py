@@ -79,7 +79,7 @@ class TypeOperator(object):
             return "{0} {1}" .format(self.name, ' '.join(self.types))
 
 
-class Function:
+class FunctionDef:
     def __init__(self, from_type, to_type):
         self.from_type = from_type
         self.to_type = to_type

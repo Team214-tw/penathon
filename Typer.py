@@ -1,7 +1,7 @@
 import ast
 import builtins
 import os
-from base import Function, TypeVar
+from base import FunctionDef, TypeVar
 import sys
 
 
@@ -42,7 +42,7 @@ class Typer:
     def _parse_func(node):
         from_type = Typer._parse_args(node.args)
         to_type = Typer._parse_anno(node.returns)
-        return Function(from_type, to_type)
+        return FunctionDef(from_type, to_type)
 
     @staticmethod
     def _parse_class(node):
@@ -145,6 +145,7 @@ class Typer:
                 cur[i] = {}
             cur = cur[i]
         for key, val in Typer._parse(parsed_ast.body).items():
+            print(val)
             cur[key] = val
 
     def _get_type(self, splitted_name):
