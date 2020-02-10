@@ -1,8 +1,7 @@
 import ast
 import builtins
 import os
-from base import Function, TypeVariable
-from typing import TypeVar
+from base import FunctionDef, TypeVar
 import sys
 
 
@@ -19,7 +18,7 @@ class Typer:
             anno = i.annotation
             if isinstance(anno, ast.Name):
                 if anno.id == "_T":
-                    from_type.append(TypeVariable())
+                    from_type.append(TypeVar())
                 else:
                     from_type.append(anno.id)
             elif isinstance(anno, ast.Subscript):
@@ -30,7 +29,7 @@ class Typer:
     def _parse_anno(node):
         if isinstance(node, ast.Name):
             if node.id == "_T":
-                return TypeVariable()
+                return TypeVar()
             else:
                 return node.id
         elif isinstance(node, ast.Subscript):
@@ -43,7 +42,7 @@ class Typer:
     def _parse_func(node):
         from_type = Typer._parse_args(node.args)
         to_type = Typer._parse_anno(node.returns)
-        return Function(from_type, to_type)
+        return FunctionDef(from_type, to_type)
 
     @staticmethod
     def _parse_class(node):
@@ -137,7 +136,6 @@ class Typer:
 
     def _record_type(self, splitted_name):
         file_name, remain_len = Typer._find_file(splitted_name[:-1])
-        print(file_name, remain_len, splitted_name[:-remain_len])
         with open(file_name) as f:
             parsed_ast = ast.parse(f.read())
         cur = self.data
