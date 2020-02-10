@@ -1,7 +1,8 @@
 import ast
 import copy
 
-from base import Constant, Dict, FunctionDef, List, Set, Tuple, TypeVar, Union
+from typing import  Dict, Set, List, Tuple, Union
+from base import FunctionDef, TypeVar
 from Typer import Typer
 
 
@@ -32,12 +33,7 @@ class Inferer:
                     self.visitReturn = False
 
             # generate body type
-            if len(infBodyType) == 0:
-                bodyType = None
-            elif len(infBodyType) == 1:
-                bodyType = infBodyType[0]
-            else:
-                bodyType = Union(infBodyType)
+            bodyType = Union[tuple(infBodyType)]
             inferredType = FunctionDef(from_type=argList, to_type=bodyType)
 
             # context switch back
@@ -90,12 +86,7 @@ class Inferer:
                     infBodyType.append(potentialType)
 
             # generate body type
-            if len(infBodyType) == 0:
-                bodyType = None
-            elif len(infBodyType) == 1:
-                bodyType = infBodyType[0]
-            else:
-                bodyType = Union(infBodyType)
+            bodyType = Union[tuple(infBodyType)]
 
             return bodyType
 
@@ -196,10 +187,10 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Dict):
-            return Dict()
+            return Dict
 
         elif isinstance(e, ast.Set):
-            return Set()
+            return Set
 
         elif isinstance(e, ast.ListComp):
             pass
@@ -249,7 +240,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Constant):
-            return Constant(value=e.value)
+            return type(e.value)
 
         elif isinstance(e, ast.Attribute):
             pass
@@ -272,10 +263,13 @@ class Inferer:
                     raise Exception(f"Unbound var {e.id}")
 
         elif isinstance(e, ast.List):
-            return List()
+            bodyType = []
+            for elt in e.elts:
+                bodyType.append(self.infer_expr(elt))
+            return List[Union[tuple(bodyType)]]
 
         elif isinstance(e, ast.Tuple):
-            return Tuple()
+            return Tuple
 
         else:
             raise Exception(f"{e.lineno}: Unsupported syntax")
