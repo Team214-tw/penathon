@@ -89,6 +89,10 @@ class Inferer:
                 potentialType = self.infer_stmt(i)
                 if self.visitReturn:
                     infBodyType.append(potentialType)
+            for i in e.orelse:
+                potentialType = self.infer_stmt(i)
+                if self.visitReturn:
+                    infBodyType.append(potentialType)
 
             # generate body type
             if len(infBodyType) == 0:
