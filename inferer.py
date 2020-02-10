@@ -281,7 +281,10 @@ class Inferer:
             for elt in e.elts:
                 bodyType.append(self.infer_expr(elt))
             bodyType = tuple(set(bodyType))
-            return typing.List[typing.Union[bodyType]]
+            if len(bodyType) > 0:
+                return typing.List[typing.Union[bodyType]]
+            else:
+                return typing.List
 
         elif isinstance(e, ast.Tuple):
             return typing.Tuple
