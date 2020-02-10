@@ -1,8 +1,8 @@
 import ast
 import copy
+import typing
 
-from typing import  Dict, Set, List, Tuple, Union
-from base import FunctionDef, TypeVar
+from base import FunctionDef, TypeVar, Union
 from Typer import Typer
 
 
@@ -33,7 +33,12 @@ class Inferer:
                     self.visitReturn = False
 
             # generate body type
-            bodyType = Union[tuple(infBodyType)]
+            if len(infBodyType) == 0:
+                bodyType = None
+            elif len(infBodyType) == 1:
+                bodyType = infBodyType[0]
+            else:
+                bodyType = Union(infBodyType)
             inferredType = FunctionDef(from_type=argList, to_type=bodyType)
 
             # context switch back
@@ -86,7 +91,12 @@ class Inferer:
                     infBodyType.append(potentialType)
 
             # generate body type
-            bodyType = Union[tuple(infBodyType)]
+            if len(infBodyType) == 0:
+                bodyType = None
+            elif len(infBodyType) == 1:
+                bodyType = infBodyType[0]
+            else:
+                bodyType = Union(infBodyType)
 
             return bodyType
 
@@ -187,10 +197,10 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Dict):
-            return Dict
+            return typing.Dict
 
         elif isinstance(e, ast.Set):
-            return Set
+            return typing.Set
 
         elif isinstance(e, ast.ListComp):
             pass
@@ -266,10 +276,11 @@ class Inferer:
             bodyType = []
             for elt in e.elts:
                 bodyType.append(self.infer_expr(elt))
-            return List[Union[tuple(bodyType)]]
+            bodyType = tuple(set(bodyType))
+            return typing.List[typing.Union[bodyType]]
 
         elif isinstance(e, ast.Tuple):
-            return Tuple
+            return typing.Tuple
 
         else:
             raise Exception(f"{e.lineno}: Unsupported syntax")
