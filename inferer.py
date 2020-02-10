@@ -315,10 +315,16 @@ class Inferer:
             return
 
         if isinstance(a, TypeVar):
-            a.instance = b
+            if isinstance(a.instance, typing.TypeVar):
+                a.instance = b
+            else:
+                a.instance = Union([a.instance, b])
 
         elif isinstance(b, TypeVar):
-            b.instance = a
+            if isinstance(b.instance, typing.TypeVar):
+                b.instance = a
+            else:
+                b.instance = Union([b.instance, a])
 
         elif isinstance(a, FunctionDef) and isinstance(b, FunctionDef):
             if len(a.from_type) != len(b.from_type):
