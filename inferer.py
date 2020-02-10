@@ -64,7 +64,11 @@ class Inferer:
             valueType = self.infer_expr(e.value)
             for t in e.targets:
                 varName = t.id
-                self.env[varName] = valueType
+                # varName may not exist in context, or may be a TypaVar
+                if isinstance(self.env.get(varName), TypeVar):
+                    self.env[varName].instance = valueType
+                else:
+                    self.env[varName] = valueType
             return valueType
 
         elif isinstance(e, ast.AugAssign):
