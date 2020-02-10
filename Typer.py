@@ -136,7 +136,6 @@ class Typer:
 
     def _record_type(self, splitted_name):
         file_name, remain_len = Typer._find_file(splitted_name[:-1])
-        print(file_name, remain_len, splitted_name[:-remain_len])
         with open(file_name) as f:
             parsed_ast = ast.parse(f.read())
         cur = self.data
@@ -145,7 +144,6 @@ class Typer:
                 cur[i] = {}
             cur = cur[i]
         for key, val in Typer._parse(parsed_ast.body).items():
-            print(val)
             cur[key] = val
 
     def _get_type(self, splitted_name):
