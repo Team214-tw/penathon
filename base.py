@@ -1,5 +1,6 @@
 import uuid
 import typing
+import ast
 
 
 class TypeVar:
@@ -75,3 +76,27 @@ class TypeOperator(object):
             return "({0} {1} {2})".format(str(self.types[0]), self.name, str(self.types[1]))
         else:
             return "{0} {1}" .format(self.name, ' '.join(self.types))
+
+
+class FunctionDef:
+    def __init__(self, from_type, to_type):
+        self.from_type = from_type
+        self.to_type = to_type
+
+    def __str__(self):
+        return f"({tuple(map(str, self.from_type))} -> {self.to_type})"
+
+def assign_convert(body):
+    new_body = list()
+    lineno_adj = 0
+    for i in body:
+        if isinstance(i, ast.Assign):
+            lineno_adj -= 1
+            for j in i.targets:
+                lineno_adj += 1
+                new_body.append(ast.Assign(targets=[j], value=i.value, lineno=i.lineno + lineno_adj))
+        else:
+            new_body.append(i)
+    return new_body
+
+
