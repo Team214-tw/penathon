@@ -5,62 +5,60 @@ import typing
 class TypeVar:
     def __init__(self):
         self.id = uuid.uuid4()
-        self.instance = None
+        self.instance = typing.TypeVar(str(self.id))
 
     def __str__(self):
-        if self.instance:
-            return f"{str(self.instance)}"
-        else:
+        # TypeVar
+        if isinstance(self.instance, typing.TypeVar):
             return f"T{str(self.id).split('-')[0]}"
-
-
-class Constant:
-    def __init__(self, value):
-        self.T = type(value)
-
-    def __str__(self):
-        return self.T.__name__
-
-
-class List:
-    def __init__(self):
-        self.T = TypeVar()
-
-    def __str__(self):
-        return "list"
-
-
-class Dict:
-    def __init__(self):
-        self.T = TypeVar()
-
-    def __str__(self):
-        return "dict"
-
-
-class Set:
-    def __init__(self):
-        self.T = TypeVar()
-
-    def __str__(self):
-        return "set"
-
-
-class Tuple:
-    def __init__(self):
-        self.T = TypeVar()
-
-    def __str__(self):
-        return "tuple"
+        # built-in type
+        elif isinstance(self.instance, type):
+            return f"{self.instance.__name__}"
+        # typing
+        else:
+            return f"{str(self.instance)}"
 
 
 class Union:
     def __init__(self, type_list):
-        self.Ts = type_list
+        self.Ts = self._flatten(type_list)
 
     def __str__(self):
-        Ts_str = ", ".join(str(x) for x in self.Ts)
-        return f"Union[{Ts_str}]"
+        Ts = []
+        for x in self.Ts:
+            # built-in type
+            if isinstance(x, type):
+                Ts.append(x.__name__)
+            else:
+                Ts.append(str(x))
+
+        if len(Ts) == 0:
+            return "None"
+        if len(Ts) == 1:
+            return Ts[0]
+        else:
+            Ts_str = ", ".join(Ts)
+            return f"typing.Union[{Ts_str}]"
+
+    def _flatten(self, parameters):
+        # Flatten out Union[Union[...], ...].
+        params = []
+        for p in parameters:
+            if isinstance(p, Union):
+                params.extend(p.Ts)
+            else:
+                params.append(p)
+        # Weed out duplicates
+        return tuple(set(params))
+
+
+class FunctionDef:
+    def __init__(self, from_type, to_type):
+        self.from_type = from_type
+        self.to_type = to_type
+
+    def __str__(self):
+        return f"({tuple(map(str, self.from_type))} -> {self.to_type})"
 
 
 class TypeOperator(object):
@@ -77,12 +75,3 @@ class TypeOperator(object):
             return "({0} {1} {2})".format(str(self.types[0]), self.name, str(self.types[1]))
         else:
             return "{0} {1}" .format(self.name, ' '.join(self.types))
-
-
-class FunctionDef:
-    def __init__(self, from_type, to_type):
-        self.from_type = from_type
-        self.to_type = to_type
-
-    def __str__(self):
-        return f"({tuple(map(str, self.from_type))} -> {self.to_type})"
