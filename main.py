@@ -16,7 +16,7 @@ def main():
     inferer = Inferer()
     for i in x.body:
         print(i.lineno, inferer.infer_stmt(i))
-    print(astor.to_source(x), end="")
+    # print(astor.to_source(x), end="")
 
 
 if __name__ == "__main__":
