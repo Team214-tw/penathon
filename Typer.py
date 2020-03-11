@@ -296,7 +296,7 @@ class Typer:
 
     def _record_type(self, splitted_name):
         file_name, remain_len = Typer._find_file(splitted_name[:-1])
-        print(file_name)
+        # print(file_name)
         with open(file_name) as f:
             parsed_ast = ast.parse(f.read())
         v = Visitor()
