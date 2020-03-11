@@ -3,7 +3,7 @@ import copy
 import astor
 from argparse import ArgumentParser
 from inferer import Inferer
-from base import assign_convert
+from preprocessor import assign_convert
 
 
 def main():

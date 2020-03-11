@@ -3,6 +3,7 @@ import copy
 
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 from Typer import Typer
+from preprocessor import assign_convert
 
 
 class Inferer:
