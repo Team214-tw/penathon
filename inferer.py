@@ -329,14 +329,15 @@ class Inferer:
             bodyType = []
             for elt in e.elts:
                 bodyType.append(self.infer_expr(elt))
-            bodyType = tuple(set(bodyType))
-            if len(bodyType) > 0:
-                return List[Union[bodyType]]
-            else:
-                return List
+            bodyType = tuple(bodyType)
+            return List[Union[bodyType]] if len(bodyType) > 0 else List
 
         elif isinstance(e, ast.Tuple):
-            return Tuple
+            bodyType = []
+            for elt in e.elts:
+                bodyType.append(self.infer_expr(elt))
+            bodyType = tuple(bodyType)
+            return Tuple[Union[bodyType]] if len(bodyType) > 0 else Tuple
 
         else:
             raise Exception(f"{e.lineno}: Unsupported syntax")
