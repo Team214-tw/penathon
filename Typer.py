@@ -1,63 +1,218 @@
 import ast
+from typing import *
+import sys
+from collections import defaultdict
 import builtins
 import os
-from base import FunctionDef, TypeVar
-import sys
+
+TYPE_DICT = {
+    "Any": Any,
+    "Callable": Callable,
+    "ClassVar": ClassVar,
+    "Final": Final,
+    "ForwardRef": ForwardRef,
+    "Generic": Generic,
+    "Literal": Literal,
+    "Optional": Optional,
+    "Protocol": Protocol,
+    "Tuple": Tuple,
+    "Type": Type,
+    "TypeVar": TypeVar,
+    "Union": Union,
+    "AbstractSet": AbstractSet,
+    "ByteString": ByteString,
+    "Container": Container,
+    "ContextManager": ContextManager,
+    "Hashable": Hashable,
+    "ItemsView": ItemsView,
+    "Iterable": Iterable,
+    "Iterator": Iterator,
+    "KeysView": KeysView,
+    "Mapping": Mapping,
+    "MappingView": MappingView,
+    "MutableMapping": MutableMapping,
+    "MutableSequence": MutableSequence,
+    "MutableSet": MutableSet,
+    "Sequence": Sequence,
+    "Sized": Sized,
+    "ValuesView": ValuesView,
+    "Awaitable": Awaitable,
+    "AsyncIterator": AsyncIterator,
+    "AsyncIterable": AsyncIterable,
+    "Coroutine": Coroutine,
+    "Collection": Collection,
+    "AsyncGenerator": AsyncGenerator,
+    "AsyncContextManager": AsyncContextManager,
+    "Reversible": Reversible,
+    "SupportsAbs": SupportsAbs,
+    "SupportsBytes": SupportsBytes,
+    "SupportsComplex": SupportsComplex,
+    "SupportsFloat": SupportsFloat,
+    "SupportsIndex": SupportsIndex,
+    "SupportsInt": SupportsInt,
+    "SupportsRound": SupportsRound,
+    "ChainMap": ChainMap,
+    "Counter": Counter,
+    "Deque": Deque,
+    "Dict": Dict,
+    "DefaultDict": DefaultDict,
+    "List": List,
+    "OrderedDict": OrderedDict,
+    "Set": Set,
+    "FrozenSet": FrozenSet,
+    "NamedTuple": NamedTuple,
+    "TypedDict": TypedDict,
+    "Generator": Generator,
+    "AnyStr": AnyStr,
+    "NewType": NewType,
+    "NoReturn": NoReturn,
+    "Text": Text,
+    "int": int,
+    "str": str,
+    "float": float,
+    "None": None,
+    "bytes": bytes,
+    "object": object,
+    "bool": bool,
+    "type": type,
+    "BaseException": BaseException,
+    "slice": slice,
+    "bytearray": bytearray,
+    "property": property,
+    "memoryview": memoryview,
+    "complex": complex,
+    "range": range,
+}
+
+TYPING_WITH_TWO_ARGS = [Dict, Callable, DefaultDict]
+
+symbol_table = {}
 
 
-class Typer:
+class AnnoVisitor(ast.NodeVisitor):
+    def generic_visit(self, node):
+        ast.NodeVisitor.generic_visit(self, node)
+        # print(node, "Not Implement AnnoVisitor")
+
+    def visit_Subscript(self, node: ast.Subscript):
+        name = self.visit(node.value)
+        if name == Any:
+            return Any
+        typ = self.visit(node.slice)
+        return name[typ]
+
+    def visit_Index(self, node: ast.Index):
+        return self.visit(node.value)
+
+    def visit_Expr(self, node: ast.Expr):
+        return self.visit(node.value)
+
+    def visit_Tuple(self, node: ast.Tuple):
+        result = []
+        for n in node.elts:
+            result.append(self.visit(n))
+        return tuple(result)
+
+    def visit_List(self, node: ast.Tuple):
+        result = []
+        for n in node.elts:
+            result.append(self.visit(n))
+        return result
+
+    def visit_Name(self, node: ast.Name):
+        try:
+            return TYPE_DICT[node.id]
+        except KeyError:
+            try:
+                return symbol_table[node.id]
+            except KeyError:
+                # print(f"Warning: No {node.id}", file=sys.stderr)
+                return Any
+
+    def visit_Constant(self, node: ast.Constant):
+        return node.value
+
+
+class Visitor(ast.NodeVisitor):
     def __init__(self):
-        self.data = {}
+        self.cur_class_name = None
+        self.storage = defaultdict(dict)
 
-    @staticmethod
-    def _parse_args(node):
-        from_type = []
-        for i in node.args:
-            if i.arg == "self":
+    def generic_visit(self, node):
+        ast.NodeVisitor.generic_visit(self, node)
+        # print(node, "Not Implement Visitor")
+
+    def visit_Expr(self, node: ast.Expr):
+        print(node.lineno)
+
+    def visit_Module(self, node: ast.Module):
+        for n in node.body:
+            self.visit(n)
+
+    def visit_ClassDef(self, node: ast.ClassDef):
+        self.cur_class_name = node.name
+        for n in node.body:
+            self.visit(n)
+        self.cur_class_name = None
+
+    def visit_AnnAssign(self, node: ast.AnnAssign):
+        name = self.visit(node.target)
+        typ = AnnoVisitor().visit(node.annotation)
+        if self.cur_class_name is None:
+            self.storage[name] = typ
+        else:
+            self.storage[self.cur_class_name][name] = typ
+        return (name, typ)
+
+    def visit_Name(self, node: ast.Name):
+        return node.id
+
+    def visit_arguments(self, node: ast.arguments):
+        result = []
+        for n in node.args:
+            if n.arg == "self" or n.arg == "cls" or n.arg == "metacls":
                 continue
-            anno = i.annotation
-            if isinstance(anno, ast.Name):
-                if anno.id == "_T":
-                    from_type.append(TypeVar())
-                else:
-                    from_type.append(anno.id)
-            elif isinstance(anno, ast.Subscript):
-                return (anno.value.id.lower(),)
-        return tuple(from_type)
+            result.append(self.visit(n))
+        return result
 
-    @staticmethod
-    def _parse_anno(node):
-        if isinstance(node, ast.Name):
-            if node.id == "_T":
-                return TypeVar()
-            else:
-                return node.id
-        elif isinstance(node, ast.Subscript):
-            return node.value.id.lower()
-        elif isinstance(node, ast.Constant):
-            if not node.value:
-                return "None"
+    def visit_arg(self, node: ast.arg):
+        return AnnoVisitor().visit(node.annotation)
 
-    @staticmethod
-    def _parse_func(node):
-        from_type = Typer._parse_args(node.args)
-        to_type = Typer._parse_anno(node.returns)
-        return FunctionDef(from_type, to_type)
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        args = self.visit(node.args)
+        ret = AnnoVisitor().visit(node.returns)
+        if self.cur_class_name is None:
+            self.storage[node.name] = Callable[args, ret]
+        else:
+            self.storage[self.cur_class_name][node.name] = Callable[args, ret]
+        return (node.name, Callable[args, ret])
 
-    @staticmethod
-    def _parse_class(node):
-        data = {}
-        for i in node.body:
-            if isinstance(i, ast.FunctionDef):
-                data[i.name] = Typer._parse_func(i)
-            elif isinstance(i, ast.AnnAssign):
-                data[i.target.id] = Typer._parse_anno(i.annotation)
-            elif isinstance(i, ast.If):
-                data = {**data, **Typer._parse_if(i)}
-        return data
+    def visit_Assign(self, node: ast.Assign):
+        name = self.visit(node.targets[0])
+        value = self.visit(node.value)
+        symbol_table[name] = value
 
-    @staticmethod
-    def _parse_if(node):
+    def visit_Constant(self, node: ast.Constant):
+        return node.value
+
+    def visit_Call(self, node: ast.Call):
+        args = []
+        for a in node.args:
+            args.append(self.visit(a))
+        kwargs = {}
+        for k in node.keywords:
+            key, val = self.visit(k)
+            kwargs[key] = val
+        if self.visit(node.func) != "TypeVar":
+            raise Exception(f"Weird Function {self.visit(node.func)}")
+        return TypeVar(*args, **kwargs)
+
+    def visit_keyword(self, node: ast.keyword):
+        name = node.arg
+        value = self.visit(node.value)
+        return (name, value)
+
+    def visit_If(self, node: ast.If):
         if isinstance(node.test, ast.Compare) and isinstance(
             node.test.left, ast.Attribute
         ):
@@ -68,9 +223,7 @@ class Typer:
                 target = ast.literal_eval(node.test.comparators[0])
                 current = sys.platform
             else:
-                return {}
-        else:
-            return {}
+                raise Exception("Unhandled If")
         if (
             isinstance(node.test.ops[0], ast.GtE)
             and current >= target
@@ -85,23 +238,16 @@ class Typer:
             or isinstance(node.test.ops[0], ast.NotEq)
             and current != target
         ):
-            return Typer._parse(node.body)
+            return list(map(self.visit, node.body))
         else:
-            return Typer._parse(node.orelse)
+            return list(map(self.visit, node.orelse))
 
-    @staticmethod
-    def _parse(node):
-        data = {}
-        for i in node:
-            if isinstance(i, ast.ClassDef):
-                data[i.name] = Typer._parse_class(i)
-            elif isinstance(i, ast.FunctionDef):
-                data[i.name] = Typer._parse_func(i)
-            elif isinstance(i, ast.If):
-                data = {**data, **Typer._parse_if(i)}
-            elif isinstance(i, ast.AnnAssign):
-                data[i.target.id] = Typer._parse_anno(i.annotation)
-        return data
+    def visit_Expr(self, node):
+        pass
+
+
+class Typer:
+    storage = {}
 
     @staticmethod
     def _recursive_find_file(cur_path, splitted_name):
@@ -138,16 +284,18 @@ class Typer:
         file_name, remain_len = Typer._find_file(splitted_name[:-1])
         with open(file_name) as f:
             parsed_ast = ast.parse(f.read())
-        cur = self.data
+        v = Visitor()
+        v.visit(parsed_ast)
+        cur = self.storage
         for i in splitted_name[:-remain_len]:
             if i not in cur:
                 cur[i] = {}
             cur = cur[i]
-        for key, val in Typer._parse(parsed_ast.body).items():
+        for key, val in v.storage.items():
             cur[key] = val
 
     def _get_type(self, splitted_name):
-        cur = self.data
+        cur = self.storage
         for i in splitted_name:
             cur = cur[i]
         return cur
@@ -157,10 +305,10 @@ class Typer:
         if splitted_name[0] in dir(builtins):
             splitted_name = ["builtins"] + splitted_name
         try:
-            self._get_type(splitted_name)
+            return self._get_type(splitted_name)
         except KeyError:
             self._record_type(splitted_name)
-        return self._get_type(splitted_name)
+            return self._get_type(splitted_name)
 
 
 if __name__ == "__main__":
@@ -171,8 +319,4 @@ if __name__ == "__main__":
     print(x.get_type("list.append"))
     print(x.get_type("str.expandtabs"))
     print(x.get_type("os.path.isfile"))
-
     print(x.get_type("os.path.altsep"))
-    # import json
-
-    # print(json.dumps(x.data, default=lambda o: str(o)))
