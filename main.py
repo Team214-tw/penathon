@@ -16,7 +16,11 @@ def main():
 
     inferer = Inferer()
     for i in x.body:
-        print(i.lineno, inferer.infer_stmt(i))
+        inferedType = inferer.infer_stmt(i)
+        if isinstance(inferedType, typing.TypeVar):
+            print(i.lineno, f"{inferedType} => {inferedType.__bound__}")
+        else:
+            print(i.lineno, inferedType)
     # print(astor.to_source(x), end="")
 
 
