@@ -1,6 +1,7 @@
 import ast
 import copy
 import astor
+import typing
 from argparse import ArgumentParser
 from inferer import Inferer
 from preprocessor import assign_convert
@@ -21,7 +22,10 @@ def main():
     for i in x.body:
         tmp, inferredType = inferer.infer_stmt(i)
         result.body.append(tmp)
-        print(i.lineno, inferredType)
+        if isinstance(inferredType, typing.TypeVar):
+            print(i.lineno, f'{inferredType} -> {inferredType.__bound__}')
+        else:
+            print(i.lineno, inferredType)
     print("--------------")
     print(astor.to_source(result), end="")
 
