@@ -1,8 +1,7 @@
 import ast
 import copy
 
-from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar
-from base import assign_convert
+from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 from Typer import Typer
 
 
@@ -231,7 +230,23 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Dict):
-            return Dict
+            if len(e.keys) == 0:
+                keyType = Any
+            else:
+                keyType = []
+                for i in e.keys:
+                    keyType.append(self.infer_expr(i))
+                keyType = Union[tuple(keyType)]
+
+            if len(e.values) == 0:
+                valueType = Any
+            else:
+                valueType = []
+                for i in e.values:
+                    valueType.append(self.infer_expr(i))
+                valueType = Union[tuple(valueType)]
+
+            return Dict[keyType, valueType]
 
         elif isinstance(e, ast.Set):
             return Set
