@@ -156,7 +156,11 @@ class Inferer:
         elif isinstance(e, ast.ImportFrom):
             for i in e.names:
                 asname = i.asname or i.name
-                self.env[asname] = f"{e.module}.{i.name}"
+                func_name = f"{e.module}.{i.name}"
+                try:
+                    self.env[asname] = self.seeker.get_type(func_name)
+                except KeyError:
+                    raise Exception(f"Type not found: {funcName}")
             return e, TypeVar(self._get_tvid())
 
         elif isinstance(e, ast.Global):
