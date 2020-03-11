@@ -11,7 +11,7 @@ class Inferer:
         self.env = dict()
         self.seeker = Typer()
         self.visitReturn = False
-        self.tvid = 0  # type variable id
+        self.tvid = 0 # type variable id
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
@@ -26,17 +26,12 @@ class Inferer:
                 argList.append(argTypeVar)
 
             # infer body type
-            infBodyType = list()
-            resultBody = list()
-
-            for i in assign_convert(e.body):
-                tmp, potentialType = self.infer_stmt(i)
+            infBodyType = []
+            for i in e.body:
+                potentialType = self.infer_stmt(i)
                 if self.visitReturn:
                     infBodyType.append(potentialType)
                     self.visitReturn = False
-                resultBody.append(tmp)
-
-            e.body = resultBody
 
             # generate body type
             if len(infBodyType) == 0:
@@ -45,21 +40,11 @@ class Inferer:
                 bodyType = Union[tuple(infBodyType)]
             inferredType = Callable[argList, bodyType]
 
-            # modify ast
-            ## arguments
-            for i in range(len(argList)):
-                if not isinstance(argList[i], TypeVar):
-                    e.args.args[i].annotation = ast.Name(argList[i].instance)
-
-            ## return variables
-            if not isinstance(bodyType, TypeVar):
-                e.returns = ast.Name(bodyType.__name__)
-
             # context switch back
             self.env = envBak
             self.env[e.name] = inferredType
 
-            return e, inferredType
+            return inferredType
 
         elif isinstance(e, ast.AsyncFunctionDef):
             pass
@@ -69,32 +54,22 @@ class Inferer:
 
         elif isinstance(e, ast.Return):
             self.visitReturn = True
-            return e, self.infer_expr(e.value)
+            return self.infer_expr(e.value)
 
         elif isinstance(e, ast.Delete):
             pass
 
         elif isinstance(e, ast.Assign):
             valueType = self.infer_expr(e.value)
-            varName = e.targets[0].id
-            # variable may not exist in context, or may be a TypaVar
-            if isinstance(self.env.get(varName), TypeVar):
-                tv = self.env[varName]
-                tv.__init__(tv.__name__, bound=valueType)
-            else:
-                e = ast.AnnAssign(
-                    target=e.targets[0],
-                    value=e.value,
-                    annotation=ast.Name("int"),
-                    lineno=e.lineno,
-                    simple=1,
-                )
-                if hasattr(valueType, "_name"):
-                    e.annotation = ast.Name(valueType._name)
-                elif hasattr(valueType, "name__ame"):
-                    e.annotation = ast.Name(valueType.__name__)
-                self.env[varName] = valueType
-            return e, valueType
+            for t in e.targets:
+                varName = t.id
+                # variable may not exist in context, or may be a TypaVar
+                if isinstance(self.env.get(varName), TypeVar):
+                    tv = self.env[varName]
+                    tv.__init__(tv.__name__, bound=valueType)
+                else:
+                    self.env[varName] = valueType
+            return valueType
 
         elif isinstance(e, ast.AugAssign):
             pass
@@ -114,13 +89,12 @@ class Inferer:
         elif isinstance(e, ast.If):
             # infer body type
             infBodyType = []
-            e.body = assign_convert(e.body)
             for i in e.body:
-                _, potentialType = self.infer_stmt(i)
+                potentialType = self.infer_stmt(i)
                 if self.visitReturn:
                     infBodyType.append(potentialType)
             for i in e.orelse:
-                _, potentialType = self.infer_stmt(i)
+                potentialType = self.infer_stmt(i)
                 if self.visitReturn:
                     infBodyType.append(potentialType)
 
@@ -130,7 +104,7 @@ class Inferer:
             else:
                 bodyType = Union[tuple(infBodyType)]
 
-            return e, bodyType
+            return bodyType
 
         elif isinstance(e, ast.With):
             pass
@@ -151,7 +125,6 @@ class Inferer:
             for i in e.names:
                 asname = i.asname or i.name
                 self.env[asname] = i.name
-            return e, TypeVar(self._get_tvid())
 
         elif isinstance(e, ast.ImportFrom):
             for i in e.names:
@@ -170,7 +143,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Expr):
-            return e, self.infer_expr(e.value)
+            return self.infer_expr(e.value)
 
         elif isinstance(e, ast.Pass):
             pass
@@ -407,10 +380,8 @@ class Inferer:
         # a, b are both TypeVar, unify each bound type
         elif isinstance(a, TypeVar) and isinstance(b, TypeVar):
             ab = []
-            if a.__bound__ is not None:
-                ab.append(a.__bound__)
-            if b.__bound__ is not None:
-                ab.append(b.__bound__)
+            if a.__bound__ is not None: ab.append(a.__bound__) 
+            if b.__bound__ is not None: ab.append(b.__bound__) 
             if len(ab) > 0:
                 a.__init__(a.__name__, bound=Union[tuple(ab)])
                 b.__init__(b.__name__, bound=Union[tuple(ab)])
@@ -418,15 +389,13 @@ class Inferer:
         # only a is TypeVar, bound b to a
         elif isinstance(a, TypeVar):
             ab = [b]
-            if a.__bound__ is not None:
-                ab.append(a.__bound__)
+            if a.__bound__ is not None: ab.append(a.__bound__)
             a.__init__(a.__name__, bound=Union[tuple(ab)])
 
         # only b is TypeVar, bound a to b
         elif isinstance(b, TypeVar):
             ab = [a]
-            if b.__bound__ is not None:
-                ab.append(b.__bound__)
+            if b.__bound__ is not None: ab.append(b.__bound__)
             b.__init__(b.__name__, bound=Union[tuple(ab)])
 
         # typing type equivalent
@@ -439,12 +408,12 @@ class Inferer:
     @staticmethod
     def _get_magic(op):
         magics = {
-            "Add": "__add__",
-            "Sub": "__sub__",
-            "Mult": "__mul__",
-            "Div": "__div__",
-            "Mod": "__mod__",
-            "Or": "__or__",
-            "And": "__and__",
+            'Add': '__add__',
+            'Sub': '__sub__',
+            'Mult': '__mul__',
+            'Div': '__div__',
+            'Mod': '__mod__',
+            'Or': '__or__',
+            'And': '__and__',
         }
         return magics[type(op).__name__]
