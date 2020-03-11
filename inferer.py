@@ -314,17 +314,12 @@ class Inferer:
         elif isinstance(e, ast.Name):
             eid = e.id
             if e.id in self.env:
-                if isinstance(self.env[e.id], str):
-                    eid = self.env[e.id]
-                else:
-                    return self.env[e.id]
-            print(eid)
-            typer = Typer()
-            try:
-                funcType = typer.get_type(eid)
-                return funcType
-            except KeyError:
-                raise Exception(f"Unbound var {eid}")
+                return self.env[e.id]
+            else:
+                try:
+                    return self.seeker.get_type(e.id)
+                except KeyError:
+                    raise Exception(f"Unbound var {e.id}")
 
         elif isinstance(e, ast.List):
             bodyType = []
@@ -347,9 +342,18 @@ class Inferer:
         # a.b.c()
         if isinstance(func, ast.Attribute):
             return f"{self._get_func_name(func.value)}.{func.attr}"
-        # a()
+        # a
         elif isinstance(func, ast.Name):
-            return func.id
+            if func.id in self.env:
+                nameType = self.env[func.id]
+                # return typing original type, e.g. typing.Dict => dict
+                try:
+                    return nameType.__origin__.__name__.lower()
+                # return built-in type
+                except AttributeError:
+                    return nameType
+            else:
+                return func.id
         # [].append
         else:
             return type(func).__name__.lower()
