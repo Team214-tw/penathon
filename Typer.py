@@ -213,34 +213,48 @@ class Visitor(ast.NodeVisitor):
         return (name, value)
 
     def visit_If(self, node: ast.If):
-        if isinstance(node.test, ast.Compare) and isinstance(
-            node.test.left, ast.Attribute
-        ):
-            if node.test.left.attr == "version_info":
-                target = ast.literal_eval(node.test.comparators[0])
-                current = sys.version_info
-            elif node.test.left.attr == "platform":
-                target = ast.literal_eval(node.test.comparators[0])
-                current = sys.platform
-            else:
-                raise Exception("Unhandled If")
-        if (
-            isinstance(node.test.ops[0], ast.GtE)
-            and current >= target
-            or isinstance(node.test.ops[0], ast.Gt)
-            and current > target
-            or isinstance(node.test.ops[0], ast.LtE)
-            and current <= target
-            or isinstance(node.test.ops[0], ast.Lt)
-            and current < target
-            or isinstance(node.test.ops[0], ast.Eq)
-            and current == target
-            or isinstance(node.test.ops[0], ast.NotEq)
-            and current != target
-        ):
+        if self.visit(node.test):
             return list(map(self.visit, node.body))
         else:
             return list(map(self.visit, node.orelse))
+
+    def visit_BoolOp(self, node: ast.BoolOp):
+        if node.op == "And":
+            return self.visit(node.values[0]) and self.visit(node.values[1])
+        elif node.op == "Or":
+            return self.visit(node.values[0]) or self.visit(node.values[1])
+
+    def visit_Compare(self, node: ast.Compare):
+        attr = self.visit(node.left)
+        if attr == "version_info":
+            target = ast.literal_eval(node.comparators[0])
+            current = sys.version_info
+        elif attr == "platform":
+            target = ast.literal_eval(node.comparators[0])
+            current = sys.platform
+        else:
+            raise Exception("Unhandled If", node.lineno)
+
+        if (
+            isinstance(node.ops[0], ast.GtE)
+            and current >= target
+            or isinstance(node.ops[0], ast.Gt)
+            and current > target
+            or isinstance(node.ops[0], ast.LtE)
+            and current <= target
+            or isinstance(node.ops[0], ast.Lt)
+            and current < target
+            or isinstance(node.ops[0], ast.Eq)
+            and current == target
+            or isinstance(node.ops[0], ast.NotEq)
+            and current != target
+        ):
+            return True
+        else:
+            return False
+
+    def visit_Attribute(self, node: ast.Attribute):
+        return node.attr
 
     def visit_Expr(self, node):
         pass
@@ -282,6 +296,7 @@ class Typer:
 
     def _record_type(self, splitted_name):
         file_name, remain_len = Typer._find_file(splitted_name[:-1])
+        print(file_name)
         with open(file_name) as f:
             parsed_ast = ast.parse(f.read())
         v = Visitor()
@@ -314,7 +329,7 @@ class Typer:
 if __name__ == "__main__":
     x = Typer()
 
-    print(x.get_type("int.__add__"))
+    print(x.get_type("time.time"))
     print(x.get_type("int.__sub__"))
     print(x.get_type("list.append"))
     print(x.get_type("str.expandtabs"))
