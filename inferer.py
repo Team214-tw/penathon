@@ -1,9 +1,9 @@
 import ast
 import copy
 
-from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar
-from base import assign_convert
+from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 from Typer import Typer
+from preprocessor import assign_convert
 
 
 class Inferer:
@@ -156,7 +156,11 @@ class Inferer:
         elif isinstance(e, ast.ImportFrom):
             for i in e.names:
                 asname = i.asname or i.name
-                self.env[asname] = f"{e.module}.{i.name}"
+                func_name = f"{e.module}.{i.name}"
+                try:
+                    self.env[asname] = self.seeker.get_type(func_name)
+                except KeyError:
+                    raise Exception(f"Type not found: {funcName}")
             return e, TypeVar(self._get_tvid())
 
         elif isinstance(e, ast.Global):
@@ -193,14 +197,17 @@ class Inferer:
             rightType = self.infer_expr(e.right)
             funcName = self._get_magic(e.op)
             try:
-                funcType = self.seeker.get_type(f"{leftType}.{funcName}")
+                leftOriType = self._get_original_type(leftType).__name__.lower()
+                funcType = self.seeker.get_type(f"{leftOriType}.{funcName}")
             except KeyError:
                 raise Exception(f"{leftType} object has no method {funcName}")
 
             # infer and perform type coercion
-            argList = (rightType,)
+            argList = [
+                rightType,
+            ]
             resultType = TypeVar(self._get_tvid())
-            self._unify(Callable[argList, resultType], funcType)
+            self._unify_callable(Callable[argList, resultType], funcType)
 
             return resultType
 
@@ -231,7 +238,23 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Dict):
-            return Dict
+            if len(e.keys) == 0:
+                keyType = Any
+            else:
+                keyType = []
+                for i in e.keys:
+                    keyType.append(self.infer_expr(i))
+                keyType = Union[tuple(keyType)]
+
+            if len(e.values) == 0:
+                valueType = Any
+            else:
+                valueType = []
+                for i in e.values:
+                    valueType.append(self.infer_expr(i))
+                valueType = Union[tuple(valueType)]
+
+            return Dict[keyType, valueType]
 
         elif isinstance(e, ast.Set):
             return Set
@@ -273,7 +296,7 @@ class Inferer:
             resultType = TypeVar(self._get_tvid())
 
             # infer def type and result type
-            self._unify(Callable[argList, resultType], funcType)
+            self._unify_callable(Callable[argList, resultType], funcType)
 
             return resultType
 
@@ -296,37 +319,34 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            eid = e.id
             if e.id in self.env:
-                if isinstance(self.env[e.id], str):
-                    eid = self.env[e.id]
-                else:
-                    return self.env[e.id]
-            print(eid)
-            typer = Typer()
-            try:
-                funcType = typer.get_type(eid)
-                return funcType
-            except KeyError:
-                raise Exception(f"Unbound var {eid}")
+                return self.env[e.id]
+            else:
+                try:
+                    func_name = self._original_func_name(e.id)
+                    return self.seeker.get_type(func_name)
+                except KeyError:
+                    raise Exception(f"Unbound var {e.id}")
 
         elif isinstance(e, ast.List):
             bodyType = []
             for elt in e.elts:
                 bodyType.append(self.infer_expr(elt))
-            bodyType = tuple(set(bodyType))
-            if len(bodyType) > 0:
-                return List[Union[bodyType]]
-            else:
-                return List
+            bodyType = tuple(bodyType)
+            return List[Union[bodyType]] if len(bodyType) > 0 else List
 
         elif isinstance(e, ast.Tuple):
-            return Tuple
+            bodyType = []
+            for elt in e.elts:
+                bodyType.append(self.infer_expr(elt))
+            bodyType = tuple(bodyType)
+            return Tuple[Union[bodyType]] if len(bodyType) > 0 else Tuple
 
         else:
             raise Exception(f"{e.lineno}: Unsupported syntax")
 
-    # helper
+    # helpers
+    # -------
     def _get_func_name(self, func):
         # a.b.c()
         if isinstance(func, ast.Attribute):
@@ -338,18 +358,54 @@ class Inferer:
         else:
             return type(func).__name__.lower()
 
+    # a.append => list.append
+    def _original_func_name(self, name):
+        splitted_name = name.split(".")
+        for i, s in enumerate(splitted_name):
+            if s in self.env:
+                ts = self.env[s]
+                # str in context cases: import time as T
+                if not isinstance(ts, str):
+                    ts = self._get_original_type(ts).__name__.lower()
+                splitted_name[i] = ts
+        return ".".join(splitted_name)
+
+    # return original type of typing type. e.g. typing.Dict => dict
+    @staticmethod
+    def _get_original_type(t):
+        if isinstance(t, TypeVar):
+            t = t.__bound__
+        try:
+            return t.__origin__
+        except AttributeError:
+            return t
+
     def _get_tvid(self):
         self.tvid += 1
         return f"T{str(self.tvid)}"
 
     @staticmethod
+    def _unify_callable(a, b):
+        a_args_type = a.__args__[:-1]
+        a_return_type = a.__args__[-1]
+        b_args_type = b.__args__[:-1]
+        b_return_type = b.__args__[-1]
+
+        if len(a_args_type) != len(b_args_type):
+            raise Exception("Function args not matched")
+
+        for p, q in zip(a_args_type, b_args_type):
+            Inferer._unify(p, q)
+        Inferer._unify(a_return_type, b_return_type)
+
+    @staticmethod
     def _unify(a, b):
-        # Type Seeker will seek str type
-        if str(a) == str(b):
+        # built-in type equivalent
+        if a == b:
             return
 
         # a, b are both TypeVar, unify each bound type
-        if isinstance(a, TypeVar) and isinstance(b, TypeVar):
+        elif isinstance(a, TypeVar) and isinstance(b, TypeVar):
             ab = []
             if a.__bound__ is not None:
                 ab.append(a.__bound__)
@@ -373,19 +429,9 @@ class Inferer:
                 ab.append(b.__bound__)
             b.__init__(b.__name__, bound=Union[tuple(ab)])
 
-        # function call, unify each argument and return value
-        elif isinstance(a, Callable) and isinstance(b, Callable):
-            a_args_type = a.__args__[:-1]
-            a_return_type = a.__args__[-1]
-            b_args_type = b.__args__[:-1]
-            b_return_type = b.__args__[-1]
-
-            if len(a_args_type) != len(b_args_type):
-                raise Exception("Function args not matched")
-
-            for p, q in zip(a_args_type, b_args_type):
-                Inferer._unify(p, q)
-            Inferer._unify(a_return_type, b_return_type)
+        # typing type equivalent
+        elif a._name == b._name:
+            return
 
         else:
             raise Exception(f"Function args: {a} and {b} are not matched")
