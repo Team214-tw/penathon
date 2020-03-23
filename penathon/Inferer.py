@@ -401,35 +401,21 @@ class Inferer:
 
         # a, b are both TypeVar, unify each bound type
         elif isinstance(a, TypeVar) and isinstance(b, TypeVar):
-            ab = []
-
-            if a.__bound__ is not None:
-                ab.append(a.__bound__)
-
-            if b.__bound__ is not None:
-                ab.append(b.__bound__)
-
+            ab = [a.__bound__] if a.__bound__ is not None else []
+            ab = [*ab, b.__bound__] if b.__bound__ is not None else [*ab]
             if len(ab) > 0:
-                a.__init__(a.__name__, bound=Union[tuple(ab)])
-                b.__init__(b.__name__, bound=Union[tuple(ab)])
+                Inferer._bound_TypeVar(a, Union[tuple(ab)])
+                Inferer._bound_TypeVar(b, Union[tuple(ab)])
 
-        # only a is TypeVar, bound b to a
+        # only a is TypeVar, set upper_bound of a to Union[b, a.__bound__]
         elif isinstance(a, TypeVar):
-            ab = [b]
+            ab = [b, a.__bound__] if a.__bound__ is not None else [b]
+            Inferer._bound_TypeVar(a, Union[tuple(ab)])
 
-            if a.__bound__ is not None:
-                ab.append(a.__bound__)
-
-            a.__init__(a.__name__, bound=Union[tuple(ab)])
-
-        # only b is TypeVar, bound a to b
+        # only b is TypeVar, set upper_bound of a to Union[a, b.__bound__]
         elif isinstance(b, TypeVar):
-            ab = [a]
-
-            if b.__bound__ is not None:
-                ab.append(b.__bound__)
-
-            b.__init__(b.__name__, bound=Union[tuple(ab)])
+            ab = [a, b.__bound__] if b.__bound__ is not None else [a]
+            Inferer._bound_TypeVar(b, Union[tuple(ab)])
 
         # typing type equivalent
         elif a._name == b._name:
@@ -437,6 +423,10 @@ class Inferer:
 
         else:
             raise Exception(f"Function args: {a} and {b} are not matched")
+
+    @staticmethod
+    def _bound_TypeVar(tv, t):
+        tv.__init__(tv.__name__, bound=t)
 
     @staticmethod
     def _get_magic(op):
