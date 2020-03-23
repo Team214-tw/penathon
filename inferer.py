@@ -25,7 +25,7 @@ class Inferer:
                 print(i.lineno, f"{inferedType} => {inferedType.__bound__}")
             else:
                 print(i.lineno, inferedType)
-        
+
         return mtree
 
     def infer_stmt(self, e):
@@ -58,6 +58,8 @@ class Inferer:
             # context switch back
             self.env = envBak
             self.env[e.name] = inferredType
+
+            self.cg.gen_functionDef(e, inferredType)
 
             return inferredType
 

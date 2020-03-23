@@ -11,17 +11,13 @@ class CodeGenerator:
     def gen_assign(self, e, t):
         e.annotation = self._get_type_name(t) 
 
-    # def _gen_functionDef(self, e, t):
-    #     args_type = t.__args__[:-1]
-    #     body_type = t.__args__[-1]
+    def gen_functionDef(self, e, t):  # t is typing.Callable
+        args_type = t.__args__[:-1]
+        body_type = t.__args__[-1]
 
-    #     e_ = deepcopy(e)
-    #     # generate function type info
-    #     for i, arg in enumerate(args_type):
-    #         e_.args.args[i].annotation = self._get_type_name(arg)
-    #     e_.returns = self._get_type_name(body_type)
-
-    #     self.scopeStk[-1]['body'].append(e_)
+        for i, arg in enumerate(args_type):
+            e.args.args[i].annotation = self._get_type_name(arg)
+        e.returns = self._get_type_name(body_type)
 
     def _get_type_name(self, t):
         # typing type
