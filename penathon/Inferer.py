@@ -156,7 +156,6 @@ class Inferer:
                     self.env[asname] = self.seeker.get_type(func_name)
                 except KeyError:
                     raise Exception(f"Type not found: {func_name}")
-            return e, TypeVar(self._get_tvid())
 
         elif isinstance(e, ast.Global):
             pass
