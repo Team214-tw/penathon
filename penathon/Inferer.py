@@ -380,6 +380,12 @@ class Inferer:
 
     @staticmethod
     def _unify_callable(a, b):
+        if not isinstance(a, Callable):
+            raise Exception(f"Expect unify type of Callable, but {type(a)} is received")
+
+        if not isinstance(b, Callable):
+            raise Exception(f"Expect unify type of Callable, but {type(b)} is received")
+
         a_args_type = a.__args__[:-1]
         a_return_type = a.__args__[-1]
         b_args_type = b.__args__[:-1]
