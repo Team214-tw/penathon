@@ -15,13 +15,8 @@ def main():
         x = ast.parse(f.read())
 
     inferer = Inferer()
-    for i in x.body:
-        inferedType = inferer.infer_stmt(i)
-        if isinstance(inferedType, typing.TypeVar):
-            print(i.lineno, f"{inferedType} => {inferedType.__bound__}")
-        else:
-            print(i.lineno, inferedType)
-    # print(astor.to_source(x), end="")
+    tree_with_type = inferer.infer(x)
+    print(astor.to_source(tree_with_type), end='')
 
 
 if __name__ == "__main__":

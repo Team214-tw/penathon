@@ -3,15 +3,30 @@ import copy
 
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 from Typer import Typer
-from preprocessor import assign_convert
+from CodeGenerator import CodeGenerator
+from Preprocessor import Preprocessor
 
 
 class Inferer:
     def __init__(self):
         self.env = dict()
         self.seeker = Typer()
+        self.cg = CodeGenerator()
+        self.preprocessor = Preprocessor()
         self.visitReturn = False
         self.tvid = 0 # type variable id
+
+    def infer(self, tree):
+        mtree = self.preprocessor.preprocess(tree) # modified tree
+
+        for i in mtree.body:
+            inferedType = self.infer_stmt(i)
+            if isinstance(inferedType, TypeVar):
+                print(i.lineno, f"{inferedType} => {inferedType.__bound__}")
+            else:
+                print(i.lineno, inferedType)
+        
+        return mtree
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
@@ -60,22 +75,27 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Assign):
-            valueType = self.infer_expr(e.value)
-            for t in e.targets:
-                varName = t.id
-                # variable may not exist in context, or may be a TypaVar
-                if isinstance(self.env.get(varName), TypeVar):
-                    tv = self.env[varName]
-                    tv.__init__(tv.__name__, bound=valueType)
-                else:
-                    self.env[varName] = valueType
-            return valueType
+            # ast.Assign transform to AnnAssign during preprocessing
+            pass
 
         elif isinstance(e, ast.AugAssign):
             pass
 
         elif isinstance(e, ast.AnnAssign):
-            pass
+            valueType = self.infer_expr(e.value)
+            varName = e.target.id
+
+            if isinstance(self.env.get(varName), TypeVar):
+                tv = self.env[varName]
+                tv.__init__(tv.__name__, bound=valueType)
+            else:
+                self.env[varName] = valueType
+
+            # for original ast.Assign node
+            if e.annotation is None:
+                self.cg.gen_assign(e, valueType)
+
+            return valueType
 
         elif isinstance(e, ast.For):
             pass
