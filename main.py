@@ -3,7 +3,7 @@ import copy
 import astor
 import typing
 from argparse import ArgumentParser
-from inferer import Inferer
+from penathon.Inferer import Inferer
 
 
 def main():
@@ -16,6 +16,7 @@ def main():
 
     inferer = Inferer()
     tree_with_type = inferer.infer(x)
+    print('-----')
     print(astor.to_source(tree_with_type), end='')
 
 

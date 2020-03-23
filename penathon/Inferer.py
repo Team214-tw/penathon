@@ -1,10 +1,10 @@
 import ast
 import copy
-
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
-from Typer import Typer
-from CodeGenerator import CodeGenerator
-from Preprocessor import Preprocessor
+
+from .Typer import Typer
+from .CodeGenerator import CodeGenerator
+from .Preprocessor import Preprocessor
 
 
 class Inferer:
@@ -14,10 +14,10 @@ class Inferer:
         self.cg = CodeGenerator()
         self.preprocessor = Preprocessor()
         self.visitReturn = False
-        self.tvid = 0 # type variable id
+        self.tvid = 0  # type variable id
 
     def infer(self, tree):
-        mtree = self.preprocessor.preprocess(tree) # modified tree
+        mtree = self.preprocessor.preprocess(tree)  # modified tree
 
         for i in mtree.body:
             inferedType = self.infer_stmt(i)
@@ -402,8 +402,13 @@ class Inferer:
         # a, b are both TypeVar, unify each bound type
         elif isinstance(a, TypeVar) and isinstance(b, TypeVar):
             ab = []
-            if a.__bound__ is not None: ab.append(a.__bound__) 
-            if b.__bound__ is not None: ab.append(b.__bound__) 
+
+            if a.__bound__ is not None:
+                ab.append(a.__bound__)
+
+            if b.__bound__ is not None:
+                ab.append(b.__bound__)
+
             if len(ab) > 0:
                 a.__init__(a.__name__, bound=Union[tuple(ab)])
                 b.__init__(b.__name__, bound=Union[tuple(ab)])
@@ -411,13 +416,19 @@ class Inferer:
         # only a is TypeVar, bound b to a
         elif isinstance(a, TypeVar):
             ab = [b]
-            if a.__bound__ is not None: ab.append(a.__bound__)
+
+            if a.__bound__ is not None:
+                ab.append(a.__bound__)
+
             a.__init__(a.__name__, bound=Union[tuple(ab)])
 
         # only b is TypeVar, bound a to b
         elif isinstance(b, TypeVar):
             ab = [a]
-            if b.__bound__ is not None: ab.append(b.__bound__)
+
+            if b.__bound__ is not None:
+                ab.append(b.__bound__)
+
             b.__init__(b.__name__, bound=Union[tuple(ab)])
 
         # typing type equivalent
@@ -430,12 +441,12 @@ class Inferer:
     @staticmethod
     def _get_magic(op):
         magics = {
-            'Add': '__add__',
-            'Sub': '__sub__',
-            'Mult': '__mul__',
-            'Div': '__div__',
-            'Mod': '__mod__',
-            'Or': '__or__',
-            'And': '__and__',
+            "Add": "__add__",
+            "Sub": "__sub__",
+            "Mult": "__mul__",
+            "Div": "__div__",
+            "Mod": "__mod__",
+            "Or": "__or__",
+            "And": "__and__",
         }
         return magics[type(op).__name__]
