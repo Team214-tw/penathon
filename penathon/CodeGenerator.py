@@ -9,7 +9,10 @@ class CodeGenerator:
         pass
 
     def gen_assign(self, e, t):
-        e.annotation = self._get_type_name(t)
+        if t is None:
+            e.annotation = ast.Name('Any')
+        else:
+            e.annotation = self._get_type_name(t)
 
     def gen_functionDef(self, e, t):  # t is typing.Callable
         args_type = t.__args__[:-1]
