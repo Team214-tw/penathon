@@ -283,10 +283,11 @@ class Typer:
 
     @staticmethod
     def _find_file(module_name):
+        pkg_dir = os.path.dirname(os.path.abspath(__file__))
         dirs = ["3.7", "3.6", "3", "2and3", "2"]
         for d in dirs:
             file_name, remain_len, found = Typer._recursive_find_file(
-                f"typeshed/stdlib/{d}", module_name
+                f"{pkg_dir}/typeshed/stdlib/{d}", module_name
             )
             if found:
                 break
