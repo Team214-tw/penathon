@@ -186,9 +186,12 @@ class Inferer:
         #     pass
 
         elif isinstance(e, ast.BinOp):
-            # get op function from left side
             leftType = self.infer_expr(e.left)
             rightType = self.infer_expr(e.right)
+
+            if Inferer._coerce(leftType, rightType):
+                leftType = rightType
+
             funcName = self._get_magic(e.op)
             try:
                 leftOriType = self._get_original_type(leftType).__name__.lower()
@@ -196,14 +199,11 @@ class Inferer:
             except KeyError:
                 raise Exception(f"{leftType} object has no method {funcName}")
 
-            # infer and perform type coercion
-            argList = [
-                rightType,
-            ]
+            argList = [rightType]
             resultType = TypeVar(self._get_tvid())
             self._unify_callable(Callable[argList, resultType], funcType)
 
-            return resultType
+            return resultType.__bound__
 
         elif isinstance(e, ast.UnaryOp):
             pass
@@ -292,7 +292,7 @@ class Inferer:
             # infer def type and result type
             self._unify_callable(Callable[argList, resultType], funcType)
 
-            return resultType
+            return resultType.__bound__
 
         elif isinstance(e, ast.FormattedValue):
             pass
@@ -386,23 +386,32 @@ class Inferer:
         if not isinstance(b, Callable):
             raise Exception(f"Expect unify type of Callable, but {type(b)} is received")
 
-        a_args_type = a.__args__[:-1]
+        a_args_type = list(a.__args__[:-1])
         a_return_type = a.__args__[-1]
-        b_args_type = b.__args__[:-1]
+        b_args_type = list(b.__args__[:-1])
         b_return_type = b.__args__[-1]
 
         if len(a_args_type) != len(b_args_type):
             raise Exception("Function args not matched")
 
-        for p, q in zip(a_args_type, b_args_type):
-            Inferer._unify(p, q)
-        Inferer._unify(a_return_type, b_return_type)
+        for i, (p, q) in enumerate(zip(a_args_type, b_args_type)):
+            a_args_type[i], b_args_type[i] = Inferer._unify(p, q)
+        a_return_type, b_return_type = Inferer._unify(a_return_type, b_return_type)
+
+        a.__args__ = (*a_args_type, a_return_type)
+        b.__args__ = (*b_args_type, b_return_type)
 
     @staticmethod
     def _unify(a, b):
         # built-in type equivalent
         if a == b:
-            return
+            return a, b
+
+        elif Inferer._coerce(a, b):
+            return b, b
+
+        elif Inferer._coerce(b, a):
+            return a, a
 
         # a, b are both TypeVar, unify each bound type
         elif isinstance(a, TypeVar) and isinstance(b, TypeVar):
@@ -411,20 +420,23 @@ class Inferer:
             if len(ab) > 0:
                 Inferer._bound_TypeVar(a, Union[tuple(ab)])
                 Inferer._bound_TypeVar(b, Union[tuple(ab)])
+            return a, b
 
         # only a is TypeVar, set upper_bound of a to Union[b, a.__bound__]
         elif isinstance(a, TypeVar):
             ab = [b, a.__bound__] if a.__bound__ is not None else [b]
             Inferer._bound_TypeVar(a, Union[tuple(ab)])
+            return a, b
 
         # only b is TypeVar, set upper_bound of a to Union[a, b.__bound__]
         elif isinstance(b, TypeVar):
             ab = [a, b.__bound__] if b.__bound__ is not None else [a]
             Inferer._bound_TypeVar(b, Union[tuple(ab)])
+            return a, b
 
         # typing type equivalent
         elif a._name == b._name:
-            return
+            return a, b
 
         else:
             raise Exception(f"Function args: {a} and {b} are not matched")
@@ -445,3 +457,21 @@ class Inferer:
             "And": "__and__",
         }
         return magics[type(op).__name__]
+
+    # check p can coerce to q
+    @staticmethod
+    def _coerce(p, q):
+        if p is int and q is float:
+            return True
+
+        elif p is int and q is complex:
+            return True
+
+        elif p is float and q is complex:
+            return True
+
+        elif isinstance(p, TypeVar):
+            return Inferer._coerce(p.__bound__, q)
+
+        else:
+            return False
