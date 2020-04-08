@@ -6,15 +6,27 @@ from .Typer import Typer
 from .CodeGenerator import CodeGenerator
 from .Preprocessor import Preprocessor
 
+PARENT_ENV = 0
 
 class Inferer:
     def __init__(self):
-        self.env = dict()
+        self.env = {0:0}
         self.seeker = Typer()
         self.cg = CodeGenerator()
         self.preprocessor = Preprocessor()
         self.visitReturn = False
         self.tvid = 0  # type variable id
+
+    def _search_env(self, target):
+        this_env = self.env
+        while True:
+            if target in self.env:
+                return self.env[target]
+            elif isinstance(self.env[PARENT_ENV], dict):
+                this_env = self.env[PARENT_ENV]
+            else:
+                break
+        return None
 
     def infer(self, tree):
         mtree = self.preprocessor.preprocess(tree)  # modified tree
@@ -30,7 +42,9 @@ class Inferer:
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
-            envBak = copy.deepcopy(self.env)
+            self.env = {
+                PARENT_ENV: self.env
+            }
 
             # create type variables for each argument
             argList = list()
@@ -56,7 +70,7 @@ class Inferer:
             inferredType = Callable[argList, bodyType]
 
             # context switch back
-            self.env = envBak
+            self.env = self.env[PARENT_ENV]
             self.env[e.name] = inferredType
 
             self.cg.gen_functionDef(e, inferredType)
@@ -88,7 +102,7 @@ class Inferer:
             varName = e.target.id
 
             if isinstance(self.env.get(varName), TypeVar):
-                tv = self.env[varName]
+                tv = self._search_env(varName)
                 tv.__init__(tv.__name__, bound=valueType)
             else:
                 self.env[varName] = valueType
@@ -194,7 +208,8 @@ class Inferer:
 
             funcName = self._get_magic(e.op)
             try:
-                leftOriType = self._get_original_type(leftType).__name__.lower()
+                leftOriType = self._get_original_type(
+                    leftType).__name__.lower()
                 funcType = self.seeker.get_type(f"{leftOriType}.{funcName}")
             except KeyError:
                 raise Exception(f"{leftType} object has no method {funcName}")
@@ -209,7 +224,9 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Lambda):
-            envBak = copy.deepcopy(self.env)
+            self.env = {
+                    PARENT_ENV: self.env
+                    }
 
             # create type variables for each argument
             argList = list()
@@ -224,7 +241,7 @@ class Inferer:
             inferredType = Callable[argList, bodyType]
 
             # context switch back
-            self.env = envBak
+            self.env = self.env[PARENT_ENV]
 
             return inferredType
 
@@ -313,8 +330,8 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            if e.id in self.env:
-                return self.env[e.id]
+            if self._search_env(e.id):
+                return self._search_env(e.id)
             else:
                 try:
                     func_name = self._original_func_name(e.id)
@@ -356,8 +373,8 @@ class Inferer:
     def _original_func_name(self, name):
         splitted_name = name.split(".")
         for i, s in enumerate(splitted_name):
-            if s in self.env:
-                ts = self.env[s]
+            if self._search_env(s):
+                ts = self._search_env(s)
                 # str in context cases: import time as T
                 if not isinstance(ts, str):
                     ts = self._get_original_type(ts).__name__.lower()
@@ -381,10 +398,12 @@ class Inferer:
     @staticmethod
     def _unify_callable(a, b):
         if not isinstance(a, Callable):
-            raise Exception(f"Expect unify type of Callable, but {type(a)} is received")
+            raise Exception(
+                f"Expect unify type of Callable, but {type(a)} is received")
 
         if not isinstance(b, Callable):
-            raise Exception(f"Expect unify type of Callable, but {type(b)} is received")
+            raise Exception(
+                f"Expect unify type of Callable, but {type(b)} is received")
 
         a_args_type = list(a.__args__[:-1])
         a_return_type = a.__args__[-1]
@@ -396,7 +415,8 @@ class Inferer:
 
         for i, (p, q) in enumerate(zip(a_args_type, b_args_type)):
             a_args_type[i], b_args_type[i] = Inferer._unify(p, q)
-        a_return_type, b_return_type = Inferer._unify(a_return_type, b_return_type)
+        a_return_type, b_return_type = Inferer._unify(
+            a_return_type, b_return_type)
 
         a.__args__ = (*a_args_type, a_return_type)
         b.__args__ = (*b_args_type, b_return_type)
