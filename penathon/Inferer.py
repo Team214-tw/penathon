@@ -8,9 +8,15 @@ from .Preprocessor import Preprocessor
 
 PARENT_ENV = 0
 
+TYPE = 1
+TYPE_CLASS = 0
+
+CLASS_NAME = 2
+
+
 class Inferer:
     def __init__(self):
-        self.env = {0:0}
+        self.env = {0: 0}
         self.seeker = Typer()
         self.cg = CodeGenerator()
         self.preprocessor = Preprocessor()
@@ -20,10 +26,10 @@ class Inferer:
     def _search_env(self, target):
         this_env = self.env
         while True:
-            if target in self.env:
-                return self.env[target]
-            elif isinstance(self.env[PARENT_ENV], dict):
-                this_env = self.env[PARENT_ENV]
+            if target in this_env:
+                return this_env[target]
+            elif isinstance(this_env[PARENT_ENV], dict):
+                this_env = this_env[PARENT_ENV]
             else:
                 break
         return None
@@ -81,7 +87,21 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.ClassDef):
-            pass
+            self.env = {
+                PARENT_ENV: self.env,
+                TYPE: TYPE_CLASS
+            }
+
+            infBodyType = []
+            for i in e.body:
+                _ = self.infer_stmt(i)
+
+            classType = self.env
+            classType[CLASS_NAME] = e.name
+
+            self.env = self.env[PARENT_ENV]
+            self.env[e.name] = classType
+            print(self.env)
 
         elif isinstance(e, ast.Return):
             self.visitReturn = True
@@ -101,7 +121,7 @@ class Inferer:
             valueType = self.infer_expr(e.value)
             varName = e.target.id
 
-            if isinstance(self.env.get(varName), TypeVar):
+            if isinstance(self._search_env(varName), TypeVar):
                 tv = self._search_env(varName)
                 tv.__init__(tv.__name__, bound=valueType)
             else:
@@ -120,7 +140,20 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.While):
-            pass
+            infBodyType = []
+            self.infer_expr(e.test)
+            for i in e.body:
+                potentialType = self.infer_stmt(i)
+                if self.visitReturn:
+                    infBodyType.append(potentialType)
+
+            # generate body type
+            if len(infBodyType) == 0:
+                bodyType = None
+            else:
+                bodyType = Union[tuple(infBodyType)]
+
+            return bodyType
 
         elif isinstance(e, ast.If):
             # infer body type
@@ -152,7 +185,17 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Try):
-            pass
+            for i in e.body:
+                potentialType = self.infer_stmt(i)
+
+            for i in e.handlers:
+                #  exceptionType = self.infer_expr(i.type)
+                #  if not isinstance(exceptionType, BaseException):
+                    #  raise Exception("Exception type does not match.")
+
+                for j in i.body:
+                    potentialType = self.infer_stmt(j)
+
 
         elif isinstance(e, ast.Assert):
             pass
@@ -225,8 +268,8 @@ class Inferer:
 
         elif isinstance(e, ast.Lambda):
             self.env = {
-                    PARENT_ENV: self.env
-                    }
+                PARENT_ENV: self.env
+            }
 
             # create type variables for each argument
             argList = list()
@@ -330,8 +373,18 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            if self._search_env(e.id):
-                return self._search_env(e.id)
+            name_path = e.id.split(".")
+            if self._search_env(name_path[0]):
+                if (name_path) == 1:
+                    return self._search_env(e.id)
+                else:
+                    now = self._search_env(name_path[0])
+                    try:
+                        for i in name_path[1:]:
+                            now = now[i]
+                        return now
+                    except KeyError:
+                        raise Exception(f"Unbound var {e.id}")
             else:
                 try:
                     func_name = self._original_func_name(e.id)
@@ -396,19 +449,35 @@ class Inferer:
         return f"T{str(self.tvid)}"
 
     @staticmethod
-    def _unify_callable(a, b):
-        if not isinstance(a, Callable):
-            raise Exception(
-                f"Expect unify type of Callable, but {type(a)} is received")
+    def _unify_callable(_a, _b):
+        a = _a
+        b = _b
+        if isinstance(a, dict):
+            a =  a["__init__"]
+            a_args_type = list(a.__args__[1:-1])
+            a_args_type = list(a.__args__[:-1])
+            a_return_type = _a[CLASS_NAME]
+            #  a_return_type = _a
+        else:
+            a_args_type = list(a.__args__[:-1])
+            a_return_type = a.__args__[-1]
 
-        if not isinstance(b, Callable):
-            raise Exception(
-                f"Expect unify type of Callable, but {type(b)} is received")
+        if isinstance(b, dict):
+            b = b["__init__"]
+            b_args_type = list(b.__args__[1:-1])
+            b_return_type = _b[CLASS_NAME]
+        else:
+            b_args_type = list(b.__args__[:-1])
+            b_return_type = b.__args__[-1]
 
-        a_args_type = list(a.__args__[:-1])
-        a_return_type = a.__args__[-1]
-        b_args_type = list(b.__args__[:-1])
-        b_return_type = b.__args__[-1]
+        #  if not isinstance(a, Callable):
+            #  raise Exception(
+                #  f"Expect unify type of Callable, but {type(a)} is received")
+
+        #  if not isinstance(b, Callable):
+            #  raise Exception(
+                #  f"Expect unify type of Callable, but {type(b)} is received")
+
 
         if len(a_args_type) != len(b_args_type):
             raise Exception("Function args not matched")
