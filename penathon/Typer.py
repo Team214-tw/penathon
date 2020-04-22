@@ -5,6 +5,8 @@ from collections import defaultdict
 import builtins
 import os
 
+from .SymTableEntry import *
+
 TYPE_DICT = {
     "Any": Any,
     "Callable": Callable,
@@ -321,10 +323,17 @@ class Typer:
         if splitted_name[0] in dir(builtins):
             splitted_name = ["builtins"] + splitted_name
         try:
-            return self._get_type(splitted_name)
+            t = self._get_type(splitted_name)
         except KeyError:
             self._record_type(splitted_name)
-            return self._get_type(splitted_name)
+            t = self._get_type(splitted_name)
+
+        if isinstance(t, dict):
+            return ClassDefSymbol(name, t)
+        elif hasattr(t, '_name') and t._name == 'Callable':
+            return FuncDefSymbol(name, t)
+        else:
+            return AssignSymbol(name, t)
 
 
 if __name__ == "__main__":

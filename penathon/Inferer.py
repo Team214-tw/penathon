@@ -5,11 +5,13 @@ from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 from .Typer import Typer
 from .CodeGenerator import CodeGenerator
 from .Preprocessor import Preprocessor
+from .SymTable import SymTable
+from .SymTableEntry import *
 
 
 class Inferer:
     def __init__(self):
-        self.env = dict()
+        self.env = SymTable()
         self.seeker = Typer()
         self.cg = CodeGenerator()
         self.preprocessor = Preprocessor()
@@ -30,14 +32,15 @@ class Inferer:
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
-            envBak = copy.deepcopy(self.env)
+            newSymTable = SymTable(self.env)
+            self.env = newSymTable
 
             # create type variables for each argument
             argList = list()
             for i in e.args.args:
                 argName = i.arg
                 argTypeVar = TypeVar(self._get_tvid())
-                self.env[argName] = argTypeVar
+                self.env.write(argName, AssignSymbol(argName, argTypeVar))
                 argList.append(argTypeVar)
 
             # infer body type
@@ -54,12 +57,13 @@ class Inferer:
             else:
                 bodyType = Union[tuple(infBodyType)]
             inferredType = Callable[argList, bodyType]
+            inferredSymbol = FuncDefSymbol(e.name, inferredType)
 
             # context switch back
-            self.env = envBak
-            self.env[e.name] = inferredType
+            self.env = self.env.parent
+            self.env.add(e, inferredSymbol)
 
-            self.cg.gen_functionDef(e, inferredType)
+            self.cg.gen_functionDef(e, inferredSymbol)
 
             return inferredType
 
@@ -85,17 +89,12 @@ class Inferer:
 
         elif isinstance(e, ast.AnnAssign):
             valueType = self.infer_expr(e.value)
-            varName = e.target.id
-
-            if isinstance(self.env.get(varName), TypeVar):
-                tv = self.env[varName]
-                tv.__init__(tv.__name__, bound=valueType)
-            else:
-                self.env[varName] = valueType
+            valueSymbol = AssignSymbol(e.target, valueType)
+            self.env.add(e, valueSymbol)
 
             # for original ast.Assign node
             if e.annotation is None:
-                self.cg.gen_assign(e, valueType)
+                self.cg.gen_assign(e, valueSymbol)
 
             return valueType
 
@@ -144,18 +143,10 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Import):
-            for i in e.names:
-                asname = i.asname or i.name
-                self.env[asname] = i.name
+            self.env.add(e)
 
         elif isinstance(e, ast.ImportFrom):
-            for i in e.names:
-                asname = i.asname or i.name
-                func_name = f"{e.module}.{i.name}"
-                try:
-                    self.env[asname] = self.seeker.get_type(func_name)
-                except KeyError:
-                    raise Exception(f"Type not found: {func_name}")
+            self.env.add(e)
 
         elif isinstance(e, ast.Global):
             pass
@@ -195,7 +186,7 @@ class Inferer:
             funcName = self._get_magic(e.op)
             try:
                 leftOriType = self._get_original_type(leftType).__name__.lower()
-                funcType = self.seeker.get_type(f"{leftOriType}.{funcName}")
+                funcType = self.seeker.get_type(f"{leftOriType}.{funcName}").reveal()
             except KeyError:
                 raise Exception(f"{leftType} object has no method {funcName}")
 
@@ -209,14 +200,15 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Lambda):
-            envBak = copy.deepcopy(self.env)
+            newSymTable = SymTable(self.env)
+            self.env = newSymTable
 
             # create type variables for each argument
             argList = list()
             for i in e.args.args:
                 argName = i.arg
                 argTypeVar = TypeVar(self._get_tvid())
-                self.env[argName] = argTypeVar
+                self.env.write(argName, AssignSymbol(argName, argTypeVar))
                 argList.append(argTypeVar)
 
             # infer body type
@@ -224,7 +216,7 @@ class Inferer:
             inferredType = Callable[argList, bodyType]
 
             # context switch back
-            self.env = envBak
+            self.env = self.env.parent
 
             return inferredType
 
@@ -280,7 +272,17 @@ class Inferer:
         elif isinstance(e, ast.Call):
             # get function type
             funcName = self._get_func_name(e.func)
-            funcType = self.infer_expr(ast.Name(funcName))
+            funcType = self.env.typeof(funcName)
+
+            # built-in function call
+            if funcName == 'list':
+                return self.infer_expr(ast.List(elts=e.args))
+            elif funcName == 'set':
+                return self.infer_expr(ast.Set(elts=e.args))
+            elif funcName == 'tuple':
+                return self.infer_expr(ast.Tuple(elts=e.args))
+            elif funcName == 'dict':
+                return Dict  # TODO
 
             # infer call type
             argList = list()
@@ -313,14 +315,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            if e.id in self.env:
-                return self.env[e.id]
-            else:
-                try:
-                    func_name = self._original_func_name(e.id)
-                    return self.seeker.get_type(func_name)
-                except KeyError:
-                    raise Exception(f"Unbound var {e.id}")
+            return self.env.typeof(e.id)
 
         elif isinstance(e, ast.List):
             bodyType = []
@@ -351,18 +346,6 @@ class Inferer:
         # [].append
         else:
             return type(func).__name__.lower()
-
-    # a.append => list.append
-    def _original_func_name(self, name):
-        splitted_name = name.split(".")
-        for i, s in enumerate(splitted_name):
-            if s in self.env:
-                ts = self.env[s]
-                # str in context cases: import time as T
-                if not isinstance(ts, str):
-                    ts = self._get_original_type(ts).__name__.lower()
-                splitted_name[i] = ts
-        return ".".join(splitted_name)
 
     # return original type of typing type. e.g. typing.Dict => dict
     @staticmethod
@@ -435,7 +418,7 @@ class Inferer:
             return a, b
 
         # typing type equivalent
-        elif a._name == b._name:
+        elif hasattr(a, '_name') and hasattr(b, '_name') and a._name == b._name:
             return a, b
 
         else:
@@ -469,9 +452,6 @@ class Inferer:
 
         elif p is float and q is complex:
             return True
-
-        elif isinstance(p, TypeVar):
-            return Inferer._coerce(p.__bound__, q)
 
         else:
             return False
