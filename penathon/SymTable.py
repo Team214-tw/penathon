@@ -37,6 +37,7 @@ class SymTable:
                     raise Exception(f"Type not found: {func_name}")
 
         elif isinstance(node, ast.FunctionDef):
+            self.env_ast[node.name] = node
             self.write(node.name, nodeInferred)
 
     def typeof(self, name):
@@ -53,6 +54,9 @@ class SymTable:
                 return self.seeker.get_type(func_name).reveal()
             except KeyError:
                 raise Exception(f"Infer failed: {name}")
+
+    def astof(self, name):
+        return self.env_ast.get(name)
 
     def write(self, name, symbol):
         self.env[name] = symbol

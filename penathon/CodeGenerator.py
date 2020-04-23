@@ -19,11 +19,25 @@ class CodeGenerator:
             e.args.args[i].annotation = self._get_type_name(arg)
         e.returns = self._get_type_name(body_type)
 
+    def update_functionDef(self, env, name):
+        e = env.astof(name)
+        t = env.typeof(name)
+        if isinstance(e, ast.FunctionDef):
+            args_type = list(t.__args__[:-1])
+            body_type = t.__args__[-1]
+
+            for i, arg in enumerate(args_type):
+                e.args.args[i].annotation = self._get_type_name(arg)
+            e.returns = self._get_type_name(body_type)
+
     def _get_type_name(self, t):
         # class
         if isinstance(t, str):
             return ast.Name(t)
-        # built-in type or TypeVar
+        # TypeVar
+        if isinstance(t, TypeVar):
+            return self._get_type_name(t.__bound__)
+        # built-in type
         elif hasattr(t, "__name__"):
             return ast.Name(t.__name__)
         # typing type

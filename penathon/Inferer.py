@@ -316,6 +316,8 @@ class Inferer:
             # infer def type and result type
             self._unify_callable(Callable[argList, resultType], funcType)
 
+            self.cg.update_functionDef(self.env, funcName)
+
             return resultType.__bound__
 
         elif isinstance(e, ast.FormattedValue):
