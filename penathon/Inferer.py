@@ -105,7 +105,20 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.While):
-            pass
+            infBodyType = []
+            self.infer_expr(e.test)
+            for i in e.body:
+                potentialType = self.infer_stmt(i)
+                if self.visitReturn:
+                    infBodyType.append(potentialType)
+
+            # generate body type
+            if len(infBodyType) == 0:
+                bodyType = None
+            else:
+                bodyType = Union[tuple(infBodyType)]
+
+            return bodyType
 
         elif isinstance(e, ast.If):
             # infer body type
@@ -137,7 +150,16 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Try):
-            pass
+            for i in e.body:
+                potentialType = self.infer_stmt(i)
+
+            for i in e.handlers:
+                #  exceptionType = self.infer_expr(i.type)
+                #  if not isinstance(exceptionType, BaseException):
+                    #  raise Exception("Exception type does not match.")
+
+                for j in i.body:
+                    potentialType = self.infer_stmt(j)
 
         elif isinstance(e, ast.Assert):
             pass
