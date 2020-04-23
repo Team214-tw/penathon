@@ -23,11 +23,11 @@ class CodeGenerator:
         # class
         if isinstance(t, str):
             return ast.Name(t)
-        # typing type
-        elif hasattr(t, "_name"):
-            return ast.Name(t._name)
         # built-in type or TypeVar
         elif hasattr(t, "__name__"):
             return ast.Name(t.__name__)
+        # typing type
+        elif hasattr(t, "_name"):
+            return ast.Name(str(t))
         else:
             return ast.Name('Any')
