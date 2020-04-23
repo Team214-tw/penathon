@@ -16,6 +16,7 @@ class Inferer:
         self.cg = CodeGenerator()
         self.preprocessor = Preprocessor()
         self.visitReturn = False
+        self.Return = None
         self.tvid = 0  # type variable id
 
     def infer(self, tree):
@@ -48,7 +49,7 @@ class Inferer:
             for i in e.body:
                 potentialType = self.infer_stmt(i)
                 if self.visitReturn:
-                    infBodyType.append(potentialType)
+                    infBodyType.append(self.Return)
                     self.visitReturn = False
 
             # generate body type
@@ -56,6 +57,7 @@ class Inferer:
                 bodyType = None
             else:
                 bodyType = Union[tuple(infBodyType)]
+                print(bodyType)
             inferredType = Callable[argList, bodyType]
             inferredSymbol = FuncDefSymbol(e.name, inferredType)
 
@@ -74,7 +76,12 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Return):
-            self.visitReturn = True
+            if self.visitReturn:
+                self.Return = Union[(self.Return, self.infer_expr(e.value))]
+            else:
+                self.Return = self.Return, self.infer_expr(e.value)
+                self.visitReturn = True
+                self.Return = self.infer_expr(e.value)
             return self.infer_expr(e.value)
 
         elif isinstance(e, ast.Delete):
@@ -109,8 +116,6 @@ class Inferer:
             self.infer_expr(e.test)
             for i in e.body:
                 potentialType = self.infer_stmt(i)
-                if self.visitReturn:
-                    infBodyType.append(potentialType)
 
             # generate body type
             if len(infBodyType) == 0:
@@ -125,12 +130,8 @@ class Inferer:
             infBodyType = []
             for i in e.body:
                 potentialType = self.infer_stmt(i)
-                if self.visitReturn:
-                    infBodyType.append(potentialType)
             for i in e.orelse:
                 potentialType = self.infer_stmt(i)
-                if self.visitReturn:
-                    infBodyType.append(potentialType)
 
             # generate body type
             if len(infBodyType) == 0:

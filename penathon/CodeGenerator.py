@@ -1,6 +1,6 @@
 import ast
 import astor
-from typing import TypeVar
+from typing import TypeVar, Union
 from copy import deepcopy
 
 
