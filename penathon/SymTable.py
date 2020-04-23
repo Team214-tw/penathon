@@ -41,12 +41,10 @@ class SymTable:
             self.write(node.name, nodeInferred)
 
     def typeof(self, name):
-        if name in self.env:
-            return self.env[name].reveal()
+        symbol = self.get(name)
 
-        # find upper level's symbol table
-        elif self.parent is not None:
-            return self.parent.typeof(name)
+        if symbol:
+            return symbol.reveal()
 
         else:
             try:
@@ -58,6 +56,16 @@ class SymTable:
     def astof(self, name):
         return self.env_ast.get(name)
 
+    def get(self, name):
+        if name in self.env:
+            return self.env[name]
+
+        elif self.parent is not None:
+            return self.parent.get(name)
+
+        else:
+            return None
+
     def write(self, name, symbol):
         self.env[name] = symbol
 
@@ -65,8 +73,9 @@ class SymTable:
     def _original_func_name(self, name):
         splitted_name = name.split(".")
         for i, s in enumerate(splitted_name):
-            if s in self.env:
-                ts = self.env[s].reveal()
+            symbol = self.get(s)
+            if symbol:
+                ts = symbol.reveal()
                 # typing.Dict => dict
                 try:
                     ts = ts.__origin__.__name__.lower()
