@@ -3,32 +3,48 @@ import astor
 from typing import TypeVar, Union
 from copy import deepcopy
 
-
-class CodeGenerator:
+class CodeGenerator(ast.NodeTransformer):
     def __init__(self):
-        pass
+        self.level = 0
+        self.symbol_table = None
 
-    def gen_assign(self, e, symbol):
-        e.annotation = self._get_type_name(symbol.reveal())
+    def visit_Assign(self, node):
+        return [
+            ast.AnnAssign(
+                target=t,
+                value=node.value,
+                annotation=self._get_type_name(self.search(t.id)),
+                lineno=node.lineno,
+                simple=1,
+            )
+            for t in node.targets
+        ]
 
-    def gen_functionDef(self, e, symbol):
-        args_type = symbol.args
-        body_type = symbol.body
+    def visit_FunctionDef(self, node):
+        t = self.search(node.name)
+        args_type = list(t.__args__[:-1])
+        body_type = t.__args__[-1]
 
         for i, arg in enumerate(args_type):
-            e.args.args[i].annotation = self._get_type_name(arg)
-        e.returns = self._get_type_name(body_type)
+            node.args.args[i].annotation = self._get_type_name(arg)
+        node.returns = self._get_type_name(body_type)
 
-    def update_functionDef(self, env, name):
-        e = env.astof(name)
-        t = env.typeof(name)
-        if isinstance(e, ast.FunctionDef):
-            args_type = list(t.__args__[:-1])
-            body_type = t.__args__[-1]
+        if (isinstance(node, ast.FunctionDef)):
+            self.symbol_table = self.symbol_table.childs[node.name]
 
-            for i, arg in enumerate(args_type):
-                e.args.args[i].annotation = self._get_type_name(arg)
-            e.returns = self._get_type_name(body_type)
+        ast.NodeTransformer.generic_visit(self, node)
+
+        if (isinstance(node, ast.FunctionDef)):
+            self.symbol_table = self.symbol_table.parent
+
+        return node
+
+    def gen(self, tree, symbol_table):
+        self.symbol_table = symbol_table
+        return self.visit(tree)
+
+    def search(self, name):
+        return self.symbol_table.get(name).reveal()
 
     def _get_type_name(self, t):
         # class

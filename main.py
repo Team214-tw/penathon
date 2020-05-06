@@ -4,6 +4,7 @@ import astor
 import typing
 from argparse import ArgumentParser
 from penathon.Inferer import Inferer
+from penathon.CodeGenerator import CodeGenerator
 
 
 def main():
@@ -15,7 +16,9 @@ def main():
         x = ast.parse(f.read())
 
     inferer = Inferer()
-    tree_with_type = inferer.infer(x)
+    cg = CodeGenerator()
+    symbol_table = inferer.infer(x)
+    tree_with_type = cg.gen(x, symbol_table)
     print('-----')
     print(astor.to_source(tree_with_type), end='')
 

@@ -11,29 +11,28 @@ from .SymTableEntry import *
 
 class Inferer:
     def __init__(self):
-        self.env = SymTable()
+        self.env = SymTable('root')
         self.seeker = Typer()
-        self.cg = CodeGenerator()
         self.preprocessor = Preprocessor()
         self.visitReturn = False
         self.Return = None
         self.tvid = 0  # type variable id
 
     def infer(self, tree):
-        mtree = self.preprocessor.preprocess(tree)  # modified tree
+        # mtree = self.preprocessor.preprocess(tree)  # modified tree
 
-        for i in mtree.body:
+        for i in tree.body:
             inferedType = self.infer_stmt(i)
             if isinstance(inferedType, TypeVar):
                 print(i.lineno, f"{inferedType} => {inferedType.__bound__}")
             else:
                 print(i.lineno, inferedType)
 
-        return mtree
+        return self.env
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
-            newSymTable = SymTable(self.env)
+            newSymTable = SymTable(e.name, self.env)
             self.env = newSymTable
 
             # create type variables for each argument
@@ -59,13 +58,10 @@ class Inferer:
                 bodyType = Union[tuple(infBodyType)]
                 print(bodyType)
             inferredType = Callable[argList, bodyType]
-            inferredSymbol = FuncDefSymbol(e.name, inferredType)
 
             # context switch back
             self.env = self.env.parent
-            self.env.add(e, inferredSymbol)
-
-            self.cg.gen_functionDef(e, inferredSymbol)
+            self.env.add(e, inferredType)
 
             return inferredType
 
@@ -88,22 +84,15 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Assign):
-            # ast.Assign transform to AnnAssign during preprocessing
-            pass
+            valueType = self.infer_expr(e.value)
+            self.env.add(e, valueType)
+            return valueType
 
         elif isinstance(e, ast.AugAssign):
             pass
 
         elif isinstance(e, ast.AnnAssign):
-            valueType = self.infer_expr(e.value)
-            valueSymbol = AssignSymbol(e.target, valueType)
-            self.env.add(e, valueSymbol)
-
-            # for original ast.Assign node
-            if e.annotation is None:
-                self.cg.gen_assign(e, valueSymbol)
-
-            return valueType
+            pass
 
         elif isinstance(e, ast.For):
             pass
@@ -223,7 +212,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Lambda):
-            newSymTable = SymTable(self.env)
+            newSymTable = SymTable(None, self.env)
             self.env = newSymTable
 
             # create type variables for each argument
@@ -316,8 +305,6 @@ class Inferer:
 
             # infer def type and result type
             self._unify_callable(Callable[argList, resultType], funcType)
-
-            self.cg.update_functionDef(self.env, funcName)
 
             return resultType.__bound__
 

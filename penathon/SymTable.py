@@ -5,22 +5,25 @@ from .SymTableEntry import *
 
 
 class SymTable:
-    def __init__(self, parent=None):
+    def __init__(self, name, parent=None):
         self.seeker = Typer()
         self.parent = parent
-        self.env_ast = {}
+        if name != None and parent != None:
+            self.parent.childs[name] = self
+        self.childs = {}
         self.env = {}
 
-    def add(self, node, nodeInferred=None):
-        if isinstance(node, ast.AnnAssign):
-            varName = node.target.id
-            varSymbol = self.env.get(varName)
+    def add(self, node, inferedType=None):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                varName = target.id
+                varSymbol = self.env.get(varName)
 
-            if isinstance(varSymbol, AssignSymbol) and isinstance(varSymbol.reveal(), typing.TypeVar):
-                tv = varSymbol.valueType
-                tv.__init__(tv.__name__, bound=nodeInferred.reveal())
-            else:
-                self.write(varName, nodeInferred)
+                if isinstance(varSymbol, AssignSymbol) and isinstance(varSymbol.reveal(), typing.TypeVar):
+                    tv = varSymbol.valueType
+                    tv.__init__(tv.__name__, bound=inferedType)
+                else:
+                    self.write(varName, AssignSymbol(varName, inferedType))
 
         elif isinstance(node, ast.Import):
             for i in node.names:
@@ -37,8 +40,7 @@ class SymTable:
                     raise Exception(f"Type not found: {func_name}")
 
         elif isinstance(node, ast.FunctionDef):
-            self.env_ast[node.name] = node
-            self.write(node.name, nodeInferred)
+            self.write(node.name, FuncDefSymbol(node.name, inferedType))
 
     def typeof(self, name):
         symbol = self.get(name)
@@ -52,9 +54,6 @@ class SymTable:
                 return self.seeker.get_type(func_name).reveal()
             except KeyError:
                 raise Exception(f"Infer failed: {name}")
-
-    def astof(self, name):
-        return self.env_ast.get(name)
 
     def get(self, name):
         if name in self.env:
