@@ -2,6 +2,7 @@ import ast
 import typing
 from .Typer import Typer
 from .SymTableEntry import *
+from .Helper import Helper
 
 
 class SymTable:
@@ -35,7 +36,8 @@ class SymTable:
                 asname = i.asname or i.name
                 func_name = f"{node.module}.{i.name}"
                 try:
-                    self.write(asname, self.seeker.get_type(func_name))
+                    func_type = self.seeker.get_type(func_name)
+                    self.write(asname, Helper.type_to_symbol(func_name, func_type))
                 except KeyError:
                     raise Exception(f"Type not found: {func_name}")
 
@@ -48,16 +50,15 @@ class SymTable:
 
     def typeof(self, name):
         symbol = self.get(name)
-
         if symbol:
-            return symbol.reveal()
-
+            t = symbol.reveal()
         else:
             try:
                 func_name = self._original_func_name(name)
-                return self.seeker.get_type(func_name).reveal()
+                t = self.seeker.get_type(func_name)
             except KeyError:
                 raise Exception(f"Infer failed: {name}")
+        return t
 
     def get(self, name):
         if name in self.env:

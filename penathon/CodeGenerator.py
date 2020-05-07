@@ -6,7 +6,6 @@ from .SymTableEntry import Class
 
 class CodeGenerator(ast.NodeTransformer):
     def __init__(self):
-        self.level = 0
         self.symbol_table = None
 
     def visit_Assign(self, node):

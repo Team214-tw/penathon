@@ -7,6 +7,7 @@ from .CodeGenerator import CodeGenerator
 from .Preprocessor import Preprocessor
 from .SymTable import SymTable
 from .SymTableEntry import *
+from .Helper import Helper
 
 
 class Inferer:
@@ -14,6 +15,7 @@ class Inferer:
         self.env = SymTable('root')
         self.seeker = Typer()
         self.preprocessor = Preprocessor()
+        self.helper = Helper()
         self.visitReturn = False
         self.Return = None
         self.tvid = 0  # type variable id
@@ -39,7 +41,7 @@ class Inferer:
             argList = list()
             for i in e.args.args:
                 argName = i.arg
-                argTypeVar = TypeVar(self._get_tvid())
+                argTypeVar = self.helper.create_type_var()
                 self.env.write(argName, AssignSymbol(argName, argTypeVar))
                 argList.append(argTypeVar)
 
@@ -198,21 +200,21 @@ class Inferer:
             leftType = self.infer_expr(e.left)
             rightType = self.infer_expr(e.right)
 
-            if Inferer._coerce(leftType, rightType):
+            if self.helper.can_coerce(leftType, rightType):
                 leftType = rightType
 
-            funcName = self._get_magic(e.op)
+            funcName = self.helper.reveal_magic_func(e.op)
             try:
-                leftOriType = self._get_original_type(leftType).__name__.lower()
-                funcType = self.seeker.get_type(f"{leftOriType}.{funcName}").reveal()
+                leftOriType = self.helper.reveal_original_type(leftType).__name__.lower()
+                funcType = self.seeker.get_type(f"{leftOriType}.{funcName}")
             except KeyError:
                 raise Exception(f"{leftType} object has no method {funcName}")
 
             argList = [rightType]
-            resultType = TypeVar(self._get_tvid())
+            resultType = self.helper.create_type_var()
             self._unify_callable(Callable[argList, resultType], funcType)
 
-            return resultType.__bound__
+            return self.helper.reveal_real_type(resultType)
 
         elif isinstance(e, ast.UnaryOp):
             pass
@@ -225,7 +227,7 @@ class Inferer:
             argList = list()
             for i in e.args.args:
                 argName = i.arg
-                argTypeVar = TypeVar(self._get_tvid())
+                argTypeVar = self.helper.create_type_var()
                 self.env.write(argName, AssignSymbol(argName, argTypeVar))
                 argList.append(argTypeVar)
 
@@ -288,9 +290,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Call):
-            # get function type
-            funcName = self._get_func_name(e.func)
-            funcType = self.env.typeof(funcName)
+            funcName = self.helper.reveal_real_func_name(e.func)
 
             # built-in function call
             if funcName == 'list':
@@ -302,17 +302,22 @@ class Inferer:
             elif funcName == 'dict':
                 return Dict  # TODO
 
+            funcType = self.env.typeof(funcName)
+            funcType = self.helper.reveal_real_type(funcType)
+            if not self.helper.is_callable(funcType):
+                return None
+
             # infer call type
             argList = list()
             for i in e.args:
                 argType = self.infer_expr(i)
                 argList.append(argType)
-            resultType = TypeVar(self._get_tvid())
+            resultTypeVar = self.helper.create_type_var()
 
             # infer def type and result type
-            self._unify_callable(Callable[argList, resultType], funcType)
+            self._unify_callable(Callable[argList, resultTypeVar], funcType)
 
-            return resultType.__bound__
+            return self.helper.reveal_real_type(resultTypeVar)
 
         elif isinstance(e, ast.FormattedValue):
             pass
@@ -354,33 +359,7 @@ class Inferer:
 
     # helpers
     # -------
-    def _get_func_name(self, func):
-        # a.b.c()
-        if isinstance(func, ast.Attribute):
-            return f"{self._get_func_name(func.value)}.{func.attr}"
-        # a()
-        elif isinstance(func, ast.Name):
-            return func.id
-        # [].append
-        else:
-            return type(func).__name__.lower()
-
-    # return original type of typing type. e.g. typing.Dict => dict
-    @staticmethod
-    def _get_original_type(t):
-        if isinstance(t, TypeVar):
-            t = t.__bound__
-        try:
-            return t.__origin__
-        except AttributeError:
-            return t
-
-    def _get_tvid(self):
-        self.tvid += 1
-        return f"T{str(self.tvid)}"
-
-    @staticmethod
-    def _unify_callable(a, b):
+    def _unify_callable(self, a, b):
         if not isinstance(a, Callable):
             raise Exception(f"Expect unify type of Callable, but {type(a)} is received")
 
@@ -396,22 +375,21 @@ class Inferer:
             raise Exception("Function args not matched")
 
         for i, (p, q) in enumerate(zip(a_args_type, b_args_type)):
-            a_args_type[i], b_args_type[i] = Inferer._unify(p, q)
-        a_return_type, b_return_type = Inferer._unify(a_return_type, b_return_type)
+            a_args_type[i], b_args_type[i] = self._unify(p, q)
+        a_return_type, b_return_type = self._unify(a_return_type, b_return_type)
 
         a.__args__ = (*a_args_type, a_return_type)
         b.__args__ = (*b_args_type, b_return_type)
 
-    @staticmethod
-    def _unify(a, b):
+    def _unify(self, a, b):
         # built-in type equivalent
         if a == b:
             return a, b
 
-        elif Inferer._coerce(a, b):
+        elif self.helper.can_coerce(a, b):
             return b, b
 
-        elif Inferer._coerce(b, a):
+        elif self.helper.can_coerce(b, a):
             return a, a
 
         # a, b are both TypeVar, unify each bound type
@@ -419,20 +397,20 @@ class Inferer:
             ab = [a.__bound__] if a.__bound__ is not None else []
             ab = [*ab, b.__bound__] if b.__bound__ is not None else [*ab]
             if len(ab) > 0:
-                Inferer._bound_TypeVar(a, Union[tuple(ab)])
-                Inferer._bound_TypeVar(b, Union[tuple(ab)])
+                self.helper.bound_type_var(a, Union[tuple(ab)])
+                self.helper.bound_type_var(b, Union[tuple(ab)])
             return a, b
 
         # only a is TypeVar, set upper_bound of a to Union[b, a.__bound__]
         elif isinstance(a, TypeVar):
             ab = [b, a.__bound__] if a.__bound__ is not None else [b]
-            Inferer._bound_TypeVar(a, Union[tuple(ab)])
+            self.helper.bound_type_var(a, Union[tuple(ab)])
             return a, b
 
         # only b is TypeVar, set upper_bound of a to Union[a, b.__bound__]
         elif isinstance(b, TypeVar):
             ab = [a, b.__bound__] if b.__bound__ is not None else [a]
-            Inferer._bound_TypeVar(b, Union[tuple(ab)])
+            self.helper.bound_type_var(b, Union[tuple(ab)])
             return a, b
 
         # typing type equivalent
@@ -441,35 +419,3 @@ class Inferer:
 
         else:
             raise Exception(f"Function args: {a} and {b} are not matched")
-
-    @staticmethod
-    def _bound_TypeVar(tv, t):
-        tv.__init__(tv.__name__, bound=t)
-
-    @staticmethod
-    def _get_magic(op):
-        magics = {
-            "Add": "__add__",
-            "Sub": "__sub__",
-            "Mult": "__mul__",
-            "Div": "__div__",
-            "Mod": "__mod__",
-            "Or": "__or__",
-            "And": "__and__",
-        }
-        return magics[type(op).__name__]
-
-    # check p can coerce to q
-    @staticmethod
-    def _coerce(p, q):
-        if p is int and q is float:
-            return True
-
-        elif p is int and q is complex:
-            return True
-
-        elif p is float and q is complex:
-            return True
-
-        else:
-            return False
