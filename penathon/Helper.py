@@ -1,5 +1,5 @@
 import ast
-from typing import TypeVar
+from typing import TypeVar, Callable, List
 from .SymTableEntry import *
 
 
@@ -11,10 +11,18 @@ class Helper:
     def type_to_symbol(name, t):
         if isinstance(t, dict):
             return ClassDefSymbol(name, t)
-        elif Helper.is_callable(t):
+        elif Helper.is_Callable(t):
             return FuncDefSymbol(name, t)
         else:
             return AssignSymbol(name, t)
+
+    @staticmethod
+    def get_callable_args(t):
+        return list(t.__args__[:-1])
+
+    @staticmethod
+    def get_callable_body(t):
+        return t.__args__[-1]
 
     # -------
     # TypeVar
@@ -32,8 +40,19 @@ class Helper:
     # --------------------
     # conditional checking
     @staticmethod
-    def is_callable(t):  # caveat: can't use isinstance
+    def is_Callable(t):  # caveat: can't use isinstance
         return hasattr(t, '_name') and t._name == 'Callable'
+
+    @staticmethod
+    def is_List(t):  # caveat: can't use isinstance
+        return hasattr(t, '_name') and t._name == 'List'
+
+    @staticmethod
+    def is_Union(t):
+        try:
+            return t.__origin__._name == 'Union'
+        except AttributeError:
+            return False
 
     @staticmethod
     def can_coerce(p, q):  # check p can coerce to q
@@ -52,16 +71,28 @@ class Helper:
     # ------
     # reveal
     @staticmethod
-    def reveal_real_type(t):
+    def reveal_type_var(t):
         if isinstance(t, TypeVar):
             return t.__bound__
+
+        elif Helper.is_Callable(t):
+            args_type = list(t.__args__[:-1])
+            for i, arg in enumerate(args_type):
+                args_type[i] = Helper.reveal_type_var(arg)
+            body_type = Helper.reveal_type_var(t.__args__[-1])
+            return Callable[args_type, body_type]
+
+        elif Helper.is_List(t):
+            arg_t = Helper.reveal_type_var(t.__args__[0])
+            return List[arg_t]
+
         else:
             return t
 
     # return original type of typing type. e.g. typing.Dict => dict
     @staticmethod
     def reveal_original_type(t):
-        t = Helper.reveal_real_type(t)
+        t = Helper.reveal_type_var(t)
         try:
             return t.__origin__
         except AttributeError:

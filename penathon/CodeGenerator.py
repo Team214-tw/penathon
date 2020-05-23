@@ -1,8 +1,12 @@
 import ast
 import astor
-from typing import TypeVar, Union
+from typing import TypeVar, Union, Callable, List
 from copy import deepcopy
+<<<<<<< HEAD
 from .SymTableEntry import Class
+=======
+from .Helper import Helper
+>>>>>>> 887d1f9... Organize code
 
 class CodeGenerator(ast.NodeTransformer):
     def __init__(self):
@@ -13,7 +17,7 @@ class CodeGenerator(ast.NodeTransformer):
             ast.AnnAssign(
                 target=t,
                 value=node.value,
-                annotation=self._get_type_name(self.search(t.id)),
+                annotation=self.get_type_ast_node(self.search(t.id)),
                 lineno=node.lineno,
                 simple=1,
             )
@@ -26,8 +30,8 @@ class CodeGenerator(ast.NodeTransformer):
         body_type = t.__args__[-1]
 
         for i, arg in enumerate(args_type):
-            node.args.args[i].annotation = self._get_type_name(arg)
-        node.returns = self._get_type_name(body_type)
+            node.args.args[i].annotation = self.get_type_ast_node(arg)
+        node.returns = self.get_type_ast_node(body_type)
 
         if (isinstance(node, ast.FunctionDef)):
             self.symbol_table = self.symbol_table.childs[node.name]
@@ -46,23 +50,23 @@ class CodeGenerator(ast.NodeTransformer):
     def search(self, name):
         return self.symbol_table.get(name).reveal()
 
-    def _get_type_name(self, t):
+    @staticmethod
+    def get_type_ast_node(t):
+        return ast.Name(CodeGenerator.reveal_inferred_type(t))
+
+    @staticmethod
+    def reveal_inferred_type(t): # return string
         # class
         if isinstance(t, str):
-            return ast.Name(t)
-        try:
-            if isinstance(t(), Class):
-                return ast.Name(t.name)
-        except:
-            pass
+            return t
         # TypeVar
-        if isinstance(t, TypeVar):
-            return self._get_type_name(t.__bound__)
+        elif isinstance(t, TypeVar):
+            return CodeGenerator.reveal_inferred_type(Helper.reveal_type_var(t))
         # built-in type
         elif hasattr(t, "__name__"):
-            return ast.Name(t.__name__)
+            return t.__name__
         # typing type
         elif hasattr(t, "_name"):
-            return ast.Name(str(t))
+            return str(Helper.reveal_type_var(t))  # TypeVar may inside typing type
         else:
-            return ast.Name('Any')
+            return 'Any'

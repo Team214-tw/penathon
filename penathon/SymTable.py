@@ -51,14 +51,13 @@ class SymTable:
     def typeof(self, name):
         symbol = self.get(name)
         if symbol:
-            t = symbol.reveal()
+            return symbol.reveal()
         else:
             try:
                 func_name = self._original_func_name(name)
-                t = self.seeker.get_type(func_name)
+                return self.seeker.get_type(func_name)
             except KeyError:
                 raise Exception(f"Infer failed: {name}")
-        return t
 
     def get(self, name):
         if name in self.env:
