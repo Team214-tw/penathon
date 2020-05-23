@@ -56,7 +56,6 @@ class Inferer:
                 bodyType = None
             else:
                 bodyType = Union[tuple(infBodyType)]
-                print(bodyType)
             inferredType = Callable[argList, bodyType]
 
             # context switch back
@@ -69,7 +68,14 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.ClassDef):
-            pass
+            newSymTable = SymTable(self.env)
+            self.env = newSymTable
+            for i in e.body:
+                potentialType = self.infer_stmt(i)
+            classType = ClassDefSymbol(e.name, self.env)
+            self.env.parent.add(e, classType)
+            self.env = self.env.parent
+            return classType
 
         elif isinstance(e, ast.Return):
             if self.visitReturn:

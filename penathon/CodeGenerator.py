@@ -2,6 +2,7 @@ import ast
 import astor
 from typing import TypeVar, Union
 from copy import deepcopy
+from .SymTableEntry import Class
 
 class CodeGenerator(ast.NodeTransformer):
     def __init__(self):
@@ -50,6 +51,11 @@ class CodeGenerator(ast.NodeTransformer):
         # class
         if isinstance(t, str):
             return ast.Name(t)
+        try:
+            if isinstance(t(), Class):
+                return ast.Name(t.name)
+        except:
+            pass
         # TypeVar
         if isinstance(t, TypeVar):
             return self._get_type_name(t.__bound__)
