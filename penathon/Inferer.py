@@ -14,8 +14,7 @@ class Inferer:
         self.env = SymTable(name='root')
         self.seeker = Typer()
         self.helper = Helper()
-        self.visitReturn = False
-        self.Return = None
+        self.func_ret_type = []
 
     def infer(self, tree):
         for i in tree.body:
@@ -32,6 +31,10 @@ class Inferer:
             newSymTable = SymTable(name=e.name, parent=self.env)
             self.env = newSymTable
 
+            # save current function return type (for nested function)
+            func_ret_type_bak = self.func_ret_type
+            self.func_ret_type = []
+
             # create type variables for each argument
             argList = list()
             for i in e.args.args:
@@ -41,19 +44,15 @@ class Inferer:
                 argList.append(argTypeVar)
 
             # infer body type
-            infBodyType = []
             for i in e.body:
-                potentialType = self.infer_stmt(i)
-                if self.visitReturn:
-                    infBodyType.append(self.Return)
-                    self.visitReturn = False
+                self.infer_stmt(i)
 
             # generate body type
-            if len(infBodyType) == 0:
-                bodyType = None
-            else:
-                bodyType = Union[tuple(infBodyType)]
+            bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) != 0 else None
             inferredType = Callable[argList, bodyType]
+
+            # restore function return type
+            self.func_ret_type = func_ret_type_bak
 
             # context switch back
             self.env = self.env.parent
@@ -75,13 +74,8 @@ class Inferer:
             return classType
 
         elif isinstance(e, ast.Return):
-            if self.visitReturn:
-                self.Return = Union[(self.Return, self.infer_expr(e.value))]
-            else:
-                self.Return = self.Return, self.infer_expr(e.value)
-                self.visitReturn = True
-                self.Return = self.infer_expr(e.value)
-            return self.infer_expr(e.value)
+            valueType = self.infer_expr(e.value)
+            self.func_ret_type.append(valueType)
 
         elif isinstance(e, ast.Delete):
             pass
@@ -297,7 +291,6 @@ class Inferer:
                 return Dict  # TODO
 
             funcType = self.env.typeof(funcName)
-            funcType = self.helper.reveal_type_var(funcType)
             if not self.helper.is_Callable(funcType):
                 return None
 
@@ -359,13 +352,6 @@ class Inferer:
     def unify(self, caller, callee):
         if caller == callee:
             return
-
-        elif self.helper.is_Union(callee):
-            callee_type = self.helper.reveal_type_var(callee.__args__)
-            if caller in callee_type:
-                return
-            else:
-                raise Exception(f"Function args: {callee} and {caller} are not matched")
 
         elif self.helper.is_List(caller) and self.helper.is_List(callee):
             caller_type = caller.__args__[0]

@@ -66,7 +66,7 @@ class CodeGenerator(ast.NodeTransformer):
         elif hasattr(t, "__name__"):
             return t.__name__
         # typing type
-        elif hasattr(t, "_name"):
+        elif hasattr(t, "_name") or Helper.is_Union(t):
             return str(Helper.reveal_type_var(t))  # TypeVar may inside typing type
         else:
             return 'Any'

@@ -1,5 +1,5 @@
 import ast
-from typing import TypeVar, Callable, List
+from typing import TypeVar, Callable, List, Union
 from .SymTableEntry import *
 
 
@@ -85,6 +85,12 @@ class Helper:
         elif Helper.is_List(t):
             arg_t = Helper.reveal_type_var(t.__args__[0])
             return List[arg_t]
+
+        elif Helper.is_Union(t):
+            union_type = []
+            for t in t.__args__:
+                union_type.append(Helper.reveal_type_var(t))
+            return Union[tuple(union_type)]
 
         else:
             return t
