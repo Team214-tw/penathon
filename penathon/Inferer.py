@@ -195,7 +195,7 @@ class Inferer:
             argList = [rightType]
             self.unify(Callable[argList, leftType], funcType)
 
-            return leftType
+            return self.helper.reveal_type_var(leftType)
 
         elif isinstance(e, ast.UnaryOp):
             pass
@@ -344,6 +344,12 @@ class Inferer:
     # -------
     def unify(self, caller, callee):
         if caller == callee:
+            return
+
+        elif self.helper.can_coerce(caller, callee):
+            return
+
+        elif self.helper.can_coerce(callee, caller):
             return
 
         elif self.helper.is_List(caller) and self.helper.is_List(callee):
