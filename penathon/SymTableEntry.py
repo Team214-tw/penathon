@@ -1,10 +1,6 @@
 import typing
 import uuid
 
-class Class(object):
-    name = ""
-    pass
-
 
 class SymTableEntry:
     def reveal(self):
@@ -22,18 +18,13 @@ class FuncDefSymbol(SymTableEntry):
 
 
 class ClassDefSymbol(SymTableEntry):
-    def __init__(self, name, symtable):
+    def __init__(self, name, func_dict):
         self.name = name
-        self.symtable = symtable
+        self.func_dict = func_dict
 
     def reveal(self):
-        init_args = list(self.symtable.get('__init__').args[1:])
-        Name = self.name
-
-        class tmpclass(Class):
-            name = Name
-
-        return typing.Callable[init_args, tmpclass]
+        init_args = list(self.func_dict['__init__'].__args__[:-1])
+        return typing.Callable[init_args, self.name]
 
 
 class AliasSymbol(SymTableEntry):

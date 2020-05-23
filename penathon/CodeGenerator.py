@@ -2,11 +2,7 @@ import ast
 import astor
 from typing import TypeVar, Union, Callable, List
 from copy import deepcopy
-<<<<<<< HEAD
-from .SymTableEntry import Class
-=======
 from .Helper import Helper
->>>>>>> 887d1f9... Organize code
 
 class CodeGenerator(ast.NodeTransformer):
     def __init__(self):

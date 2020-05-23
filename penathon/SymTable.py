@@ -44,10 +44,6 @@ class SymTable:
         elif isinstance(node, ast.FunctionDef):
             self.write(node.name, FuncDefSymbol(node.name, inferedType))
 
-        elif isinstance(node, ast.ClassDef):
-            self.env_ast[node.name] = node
-            self.write(node.name, nodeInferred)
-
     def typeof(self, name):
         symbol = self.get(name)
         if symbol:
@@ -65,9 +61,7 @@ class SymTable:
 
         elif self.parent is not None:
             return self.parent.get(name)
-        elif name.find("."):
-            first = name.find(".")
-            return self.env.get(self.env.get(name[:first]).reveal().name).symtable.get(name[first+1:])
+
         else:
             return None
 
