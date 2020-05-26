@@ -112,3 +112,5 @@ dmypy.json
 .venv/
 
 .vscode/
+
+node_modules/
