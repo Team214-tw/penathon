@@ -89,7 +89,7 @@ class TypeWrapper:
             return typing.Dict[self.key_type, self.value_type]
 
         elif self.class_name:
-            return self.class_name
+            return type(self.class_name, (object,), {})
 
         return self.type
 

@@ -68,19 +68,19 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.ClassDef):
-            # newSymTable = SymTable(self.env)
-            # self.env = newSymTable
-            # for i in e.body:
-            #     potentialType = self.infer_stmt(i)
-            # classType = ClassDefSymbol(e.name, self.env)
-            # self.env.parent.add(e, classType)
-            # self.env = self.env.parent
-            # return classType
-            pass
+            newSymTable = SymTable(e.name, self.env)
+            self.env = newSymTable
+
+            for i in e.body:
+                self.infer_stmt(i)
+
+            classType = TypeWrapper(self.env.env, e.name)
+            self.env = self.env.parent
+            self.env.add(e.name, classType)
 
         elif isinstance(e, ast.Return):
             valueType = self.infer_expr(e.value)
-            self.func_ret_type.append(valueType)
+            self.func_ret_type.append(valueType.reveal())
 
         elif isinstance(e, ast.Delete):
             pass
