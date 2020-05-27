@@ -18,9 +18,10 @@ BASIC_TYPES = {
 BASIC_TYPES_LIST = [int, str, float, type(None), bytes, object, bool, type, slice, bytearray, complex]
 
 class TypeWrapper:
-    def __init__(self, t, class_name=None):
+    def __init__(self, t, class_name=None, lazy_func_info=None):
         self.type = t
         self.class_name = class_name
+        self.lazy_func_info = lazy_func_info
 
         if self.is_list(): self.list_init()
         elif self.is_tuple(): self.tuple_init()

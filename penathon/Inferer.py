@@ -21,42 +21,11 @@ class Inferer:
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
-            newSymTable = SymTable(e.name, self.env)
-            self.env = newSymTable
-
-            # save current function return type (for nested function)
-            func_ret_type_bak = self.func_ret_type
-            self.func_ret_type = []
-
-            # check is infering class
-            if self.cur_class is not None:
-                self.env.add(e.args.args[0].arg, self.cur_class)
-                argList = []
-                for i in e.args.args[1:]:
-                    argName = i.arg
-                    argTypeVar = TypeWrapper.new_type_var()
-                    self.env.add(argName, argTypeVar)
-                    argList.append(argTypeVar.reveal())
-            else:
-                argList = []
-                for i in e.args.args:
-                    argName = i.arg
-                    argTypeVar = TypeWrapper.new_type_var()
-                    self.env.add(argName, argTypeVar)
-                    argList.append(argTypeVar.reveal())
-
-            # infer body type
-            for i in e.body:
-                self.infer_stmt(i)
-
-            # generate body type
-            bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) else type(None)
-            inferredType = TypeWrapper(Callable[argList, bodyType])
-
-            # restore context
-            self.func_ret_type = func_ret_type_bak
-            self.env = self.env.parent
-            self.env.add(e.name, inferredType)
+            self.env.add(e.name, TypeWrapper(None, lazy_func_info={
+                'tree': e,
+                'env': self.env,
+                'cur_class': self.cur_class,
+            }))
 
         elif isinstance(e, ast.AsyncFunctionDef):
             pass
@@ -333,6 +302,7 @@ class Inferer:
             if callee.is_class():
                 try:
                     funcType = callee.typeof("__init__") # try to unify init
+                    self.lazy_func_load(funcType)
                 except:
                     return callee
             else:
@@ -375,7 +345,10 @@ class Inferer:
                 return valueType.type, e.attr
             elif ctx == "Load":
                 valueType = self.infer_expr(e.value)
-                return valueType.typeof(e.attr)
+                attrType = valueType.typeof(e.attr)
+                if attrType.lazy_func_info is not None:
+                    return self.lazy_func_load(attrType)
+                return attrType
             else:
                 raise Exception("Not implemented attribute operation")
 
@@ -395,6 +368,8 @@ class Inferer:
                 nameType = self.env.typeof(e.id)
                 if isinstance(nameType, SymTable):
                     return TypeWrapper(nameType.env, e.id)
+                elif nameType.lazy_func_info is not None:
+                    return self.lazy_func_load(nameType)
                 return nameType
             else:
                 raise Exception("Not implemented name operation")
@@ -418,6 +393,52 @@ class Inferer:
         else:
             raise Exception(f"{e.lineno}: Unsupported syntax")
 
+    def lazy_func_load(self, func_type):
+        e = func_type.lazy_func_info['tree']
+        env = func_type.lazy_func_info['env']
+        cur_class = func_type.lazy_func_info['cur_class']
+
+        # context save
+        env_bak = self.env
+        self.env = SymTable(e.name, env)
+        cur_class_bak = self.cur_class
+        self.cur_class = cur_class
+        func_ret_type_bak = self.func_ret_type
+        self.func_ret_type = []
+
+        # check is infering class
+        if self.cur_class is not None:
+            self.env.add(e.args.args[0].arg, self.cur_class)
+            argList = []
+            for i in e.args.args[1:]:
+                argName = i.arg
+                argTypeVar = TypeWrapper.new_type_var()
+                self.env.add(argName, argTypeVar)
+                argList.append(argTypeVar.reveal())
+        else:
+            argList = []
+            for i in e.args.args:
+                argName = i.arg
+                argTypeVar = TypeWrapper.new_type_var()
+                self.env.add(argName, argTypeVar)
+                argList.append(argTypeVar.reveal())
+
+        # infer body type
+        for i in e.body:
+            self.infer_stmt(i)
+
+        # generate body type
+        bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) else type(None)
+        func_type.type = Callable[argList, bodyType]
+        func_type.lazy_func_info = None
+
+        # restore context
+        self.func_ret_type = func_ret_type_bak
+        self.env = env_bak
+        self.cur_class = cur_class_bak
+
+        return func_type
+
     # helpers
     # -------
     def unify(self, caller, callee):
@@ -427,7 +448,9 @@ class Inferer:
         elif caller.is_type_var() and callee.is_type_var():
             callerType = TypeWrapper.get_typevar_bound(caller.reveal())
             calleeType = TypeWrapper.get_typevar_bound(callee.reveal())
-            unionType = Union[tuple(filter(None, [callerType, calleeType]))]
+            unionType = tuple(filter(None, [callerType, calleeType]))
+            if len(unionType) == 0: return
+            unionType = Union[unionType]
             caller.union(unionType)
             callee.union(unionType)
 
@@ -443,8 +466,8 @@ class Inferer:
             caller_body = TypeWrapper.get_callable_ret(caller.reveal())
             callee_body = TypeWrapper.get_callable_ret(callee.reveal())
 
-            # if len(caller_args) != len(callee_args):
-            #     raise Exception("Function args not matched")
+            if len(caller_args) != len(callee_args):
+                raise Exception("Function args not matched")
 
             for caller_t, callee_t in zip(caller_args, callee_args):
                 if caller_t is Ellipsis or callee_t is Ellipsis:
