@@ -184,7 +184,16 @@ class Inferer:
                 self.env.add(i, env.typeof(i))
 
         elif isinstance(e, ast.Nonlocal):
-            pass
+            if self.env.parent is None:
+                raise Exception("nonlocal declaration not allowed at module level")
+            env = self.env.parent
+            if env.parent is None:
+                raise Exception(f"no binding for nonlocal {e.names[0]} found")
+
+            for i in e.names:
+                if i not in env.env:
+                    raise Exception(f"no binding for nonlocal {i} found")
+                self.env.add(i, env.typeof(i))
 
         elif isinstance(e, ast.Expr):
             return self.infer_expr(e.value)
