@@ -1,5 +1,6 @@
 import ast
 from typing import *
+import typing
 import sys
 from collections import defaultdict
 import builtins
@@ -367,8 +368,8 @@ class Seeker(Typer):
 
 if __name__ == "__main__":
     x = Seeker()
-    symtable = x.get_builtins_obj("print")
-    symtable.print()
+    symtable = x.get_builtins_obj("open")
+    print(symtable.reveal())
 
     # print(x.get_type("os").symtable)
     # print(x.get_type("builtins"))
