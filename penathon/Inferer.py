@@ -89,36 +89,22 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.While):
-            # infBodyType = []
-            # self.infer_expr(e.test)
-            # for i in e.body:
-            #     potentialType = self.infer_stmt(i)
+            self.infer_expr(e.test)
 
-            # # generate body type
-            # if len(infBodyType) == 0:
-            #     bodyType = None
-            # else:
-            #     bodyType = Union[tuple(infBodyType)]
+            for i in e.body:
+                self.infer_stmt(i)
 
-            # return bodyType
-            pass
+            for i in e.orelse:
+                self.infer_stmt(i)
 
         elif isinstance(e, ast.If):
-            # # infer body type
-            # infBodyType = []
-            # for i in e.body:
-            #     potentialType = self.infer_stmt(i)
-            # for i in e.orelse:
-            #     potentialType = self.infer_stmt(i)
+            self.infer_expr(e.test)
 
-            # # generate body type
-            # if len(infBodyType) == 0:
-            #     bodyType = None
-            # else:
-            #     bodyType = Union[tuple(infBodyType)]
+            for i in e.body:
+                self.infer_stmt(i)
 
-            # return bodyType
-            pass
+            for i in e.orelse:
+                self.infer_stmt(i)
 
         elif isinstance(e, ast.With):
             pass
@@ -130,17 +116,15 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Try):
-            # for i in e.body:
-            #     potentialType = self.infer_stmt(i)
+            for i in e.body:
+                self.infer_stmt(i)
 
-            # for i in e.handlers:
-            #     #  exceptionType = self.infer_expr(i.type)
-            #     #  if not isinstance(exceptionType, BaseException):
-            #         #  raise Exception("Exception type does not match.")
+            for i in e.handlers:
+                for j in i.body:
+                    self.infer_stmt(j)
 
-            #     for j in i.body:
-            #         potentialType = self.infer_stmt(j)
-            pass
+            for i in e.finalbody:
+                self.infer_stmt(i)
 
         elif isinstance(e, ast.Assert):
             pass
