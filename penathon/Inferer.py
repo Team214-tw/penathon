@@ -152,8 +152,8 @@ class Inferer:
 
         elif isinstance(e, ast.ImportFrom):
             for n in e.names:
-                module_name = f"{e.module}.{n.name}"
-                self.env.add_module(module_name, n.asname)
+                module_name = f"{e.module}"
+                self.env.add_module(module_name, n.asname, target=n.name)
 
         elif isinstance(e, ast.Global):
             pass
@@ -179,7 +179,7 @@ class Inferer:
     def infer_expr(self, e):
         if isinstance(e, ast.BoolOp):
             bool_inst = self.env.typeof('bool')
-            return TypeWrapper(bool_inst.env, 'bool')
+            return bool_inst
 
         # elif isinstance(e, ast.NamedExpr):
         #     pass
@@ -208,14 +208,14 @@ class Inferer:
                 callType = TypeWrapper(Callable[argList, resultType])
                 funcType = a.typeof(op_func)
                 self.unify(callType, funcType)
-                inferedType = TypeWrapper.reveal_type_var(resultType)
-                return TypeWrapper(inferedType)
 
             try: # left op
-                return do(leftType, self._get_magic(e.op, reverse=False), rightType)
+                do(leftType, self._get_magic(e.op, reverse=False), rightType)
+                return leftType
             except: # right op
                 try:
-                    return do(rightType, self._get_magic(e.op, reverse=True), leftType)
+                    do(rightType, self._get_magic(e.op, reverse=True), leftType)
+                    return rightType
                 except:
                     leftType.type = leftOriType
                     leftType.class_name = leftOriClass
@@ -228,33 +228,31 @@ class Inferer:
             return self.infer_expr(e.operand)
 
         elif isinstance(e, ast.Lambda):
-            # newSymTable = SymTable(None, self.env)
-            # self.env = newSymTable
+            env_bak = self.env
+            self.env = SymTable(None, None)
 
-            # # create type variables for each argument
-            # argList = list()
-            # for i in e.args.args:
-            #     argName = i.arg
-            #     argTypeVar = TypeVar(self._get_tvid())
-            #     self.env.write(argName, AssignSymbol(argName, argTypeVar))
-            #     argList.append(argTypeVar)
+            # create type variables for each argument
+            argList = list()
+            for i in e.args.args:
+                argName = i.arg
+                argTypeVar = TypeWrapper.new_type_var()
+                self.env.add(argName, argTypeVar)
+                argList.append(argTypeVar.reveal())
 
-            # # infer body type
-            # bodyType = self.infer_expr(e.body)
-            # inferredType = Callable[argList, bodyType]
+            # generate body type
+            bodyType = self.infer_expr(e.body).reveal()
+            inferredType = TypeWrapper(Callable[argList, bodyType])
 
-            # # context switch back
-            # self.env = self.env.parent
+            # context switch back
+            self.env = env_bak
 
-            # return inferredType
-            pass
+            return inferredType
 
         elif isinstance(e, ast.IfExp):
             pass
 
         elif isinstance(e, ast.Dict):
-            dict_class_def = self.env.typeof('builtins').typeof('dict')
-            dict_class_inst = TypeWrapper(dict_class_def.env, class_name='dict')
+            dict_class_inst = self.env.typeof('dict')
 
             for i in range(len(e.keys)):
                 key_type = self.infer_expr(e.keys[i]).reveal()
@@ -264,8 +262,7 @@ class Inferer:
             return dict_class_inst
 
         elif isinstance(e, ast.Set):
-            set_class_def = self.env.typeof('builtins').typeof('set')
-            set_class_inst = TypeWrapper(set_class_def.env, class_name='set')
+            set_class_inst = self.env.typeof('set')
 
             for elmt in e.elts:
                 set_class_inst.bound(self.infer_expr(elmt).reveal())
@@ -322,9 +319,11 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Constant):
+            if e.value is None:
+                return TypeWrapper(type(None))
             typeName = type(e.value).__name__
             constant_inst = self.env.typeof(typeName)
-            return TypeWrapper(constant_inst.env, class_name=typeName)
+            return constant_inst
 
         elif isinstance(e, ast.Attribute):
             valueType = self.infer_expr(e.value)
@@ -342,8 +341,7 @@ class Inferer:
             return self.env.typeof(e.id)
 
         elif isinstance(e, ast.List):
-            list_class_def = self.env.typeof('builtins').typeof('list')
-            list_class_inst = TypeWrapper(list_class_def.env, class_name='list')
+            list_class_inst = self.env.typeof('list')
 
             for elmt in e.elts:
                 list_class_inst.bound(self.infer_expr(elmt).reveal())
@@ -351,8 +349,7 @@ class Inferer:
             return list_class_inst
 
         elif isinstance(e, ast.Tuple):
-            tuple_class_def = self.env.typeof('builtins').typeof('tuple')
-            tuple_class_inst = TypeWrapper(tuple_class_def.env, class_name='tuple')
+            tuple_class_inst = self.env.typeof('tuple')
 
             for elmt in e.elts:
                 tuple_class_inst.bound(self.infer_expr(elmt).reveal())
@@ -367,6 +364,12 @@ class Inferer:
     def unify(self, caller, callee):
         if caller.reveal() == callee.reveal():
             return
+
+        elif TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
+            caller_args = TypeWrapper.get_arg(caller)
+            callee_args = TypeWrapper.get_arg(callee)
+            for caller_t, callee_t in zip(caller_args, callee_args):
+                self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
 
         elif caller.is_type_var():
             caller.union(callee.reveal())
@@ -383,7 +386,7 @@ class Inferer:
             if len(caller_args) != len(callee_args):
                 raise Exception("Function args not matched")
 
-            for i, (caller_t, callee_t) in enumerate(zip(caller_args, callee_args)):
+            for caller_t, callee_t in zip(caller_args, callee_args):
                 self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
             self.unify(TypeWrapper(caller_body), TypeWrapper(callee_body))
 

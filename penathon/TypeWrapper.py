@@ -150,6 +150,14 @@ class TypeWrapper:
             return False
 
     @staticmethod
+    def has_arg(t):
+        return hasattr(t.reveal(), '__args__') and len(t.reveal().__args__) != 0
+
+    @staticmethod
+    def get_arg(t):
+        return list(t.reveal().__args__)
+
+    @staticmethod
     def new_type_var():        
         return TypeWrapper(typing.TypeVar(str(uuid.uuid4())))
 
@@ -209,6 +217,7 @@ class TypeWrapper:
             else:
                 for idx, a in enumerate(arg_list):
                     arg_list[idx] = TypeWrapper.reveal_type_var(a)
+                body_type = TypeWrapper.reveal_type_var(body_type)
             return typing.Callable[arg_list, body_type]
 
         elif TypeWrapper.is_List(t):

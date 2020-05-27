@@ -10,15 +10,23 @@ seeker = Typer.Seeker()
 class SymTable:
     def __init__(self, name, parent=None):
         self.parent = parent
+        if self.parent:
+            self.parent.childs[name] = self
         self.name = name
         self.env = {}
+        self.childs = {}
 
     def add(self, name, t):
         self.env[name] = t
 
-    def add_module(self, module_name, as_name=None):
+    def add_module(self, module_name, as_name=None, target=None):
         module_symtable = seeker.get_module_symtable(module_name)
-        if as_name is None:
+        if target is not None: # load target only
+            if as_name is None:
+                self.env[target] = module_symtable.typeof(target)
+            else:
+                self.env[as_name] = module_symtable.typeof(target)
+        elif as_name is None: # load entire module
             module_name_splitted = module_name.split('.')
             cur = self
             for i in module_name_splitted[:-1]:
@@ -35,7 +43,11 @@ class SymTable:
         except:
             try:
                 builtins_symtable = seeker.get_module_symtable('builtins')
-                return builtins_symtable.get(name)
+                builtins_obj = builtins_symtable.get(name)
+                if isinstance(builtins_obj, SymTable):
+                    return TypeWrapper(builtins_obj.env, class_name=name)
+                else:
+                    return builtins_obj
             except:
                 raise Exception(f"{name} not found in symbol table: {self._get_symtable_name()}")
 
@@ -69,6 +81,9 @@ class SymTable:
                 v.print(level + 1)
             else:
                 print(f"{indent}    {k}: {TypeWrapper.reveal_type_var(v.reveal())}")
+
+        for c in self.childs:
+            self.childs[c].print(level + 1)
 
         print(f"{indent}-----{level}-----")
 
