@@ -2,7 +2,10 @@ import ast
 import builtins
 import typing
 
+from . import Typer
 from .TypeWrapper import TypeWrapper
+
+seeker = Typer.Seeker()
 
 class SymTable:
     def __init__(self, name, parent=None):
@@ -13,8 +16,28 @@ class SymTable:
     def add(self, name, t):
         self.env[name] = t
 
+    def add_module(self, module_name, as_name=None):
+        module_symtable = seeker.get_module_symtable(module_name)
+        if as_name is None:
+            module_name_splitted = module_name.split('.')
+            cur = self
+            for i in module_name_splitted[:-1]:
+                if i not in cur.env:
+                    cur.env[i] = SymTable(i, cur)
+                cur = cur.env[i]
+            cur.env[module_name_splitted[-1]] = module_symtable
+        else:
+            self.env[as_name] = module_symtable
+
     def typeof(self, name):
-        return self.get(name)
+        try:
+            return self.get(name)
+        except:
+            try:
+                builtins_symtable = seeker.get_module_symtable('builtins')
+                return builtins_symtable.get(name)
+            except:
+                raise Exception(f"{name} not found in symbol table: {self._get_symtable_name()}")
 
     def get(self, name):
         if name in self.env:
@@ -29,21 +52,6 @@ class SymTable:
             return self.name
         else:
             return f"{self.parent._get_symtable_name()}.{self.name}"
-
-    # a.append => list.append
-    # def _original_func_name(self, name):
-    #     splitted_name = name.split(".")
-    #     for i, s in enumerate(splitted_name):
-    #         symbol = self.get(s)
-    #         if symbol:
-    #             ts = symbol.reveal()
-    #             # typing.Dict => dict
-    #             try:
-    #                 ts = ts.__origin__.__name__.lower()
-    #             except AttributeError:
-    #                 pass
-    #             splitted_name[i] = ts
-    #     return ".".join(splitted_name)
 
     def print(self, level=0):
         indent = '    ' * level

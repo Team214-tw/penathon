@@ -5,7 +5,7 @@ from collections import defaultdict
 import builtins
 import os
 
-from .SymTable import SymTable
+from . import SymTable
 from .TypeWrapper import TypeWrapper
 
 
@@ -348,31 +348,26 @@ class Seeker(Typer):
             # submodule or class
             if isinstance(v, dict):
                 submodule_name = f"{k}"
-                submodule_symtable = SymTable(submodule_name, symtable)
+                submodule_symtable = SymTable.SymTable(submodule_name, symtable)
                 self._record_symtable(submodule_symtable, v, submodule_name)
                 symtable.add(submodule_name, submodule_symtable)
             else:
                 symtable.add(k, TypeWrapper(v))
 
     def get_module_symtable(self, module_name):
-        module_symtable = SymTable(module_name)
+        module_symtable = SymTable.SymTable(module_name)
         module = self.get_type(module_name)
         self._record_symtable(module_symtable, module, module_name)
         return module_symtable
 
-seeker = Seeker()
 
 if __name__ == "__main__":
     x = Seeker()
-    symtable = x.get_module_symtable("tuple")
+    symtable = x.get_module_symtable("os.path")
     symtable.print()
 
     # print(x.get_type("os").symtable)
-    import pprint
-
-    pp = pprint.PrettyPrinter(indent=4)
-    pp.pprint(x.get_type("builtins").symtable)
-    # print()
+    # print(x.get_type("builtins"))
     # print(x.get_type("time"))
     # print(x.get_type("int"))
     # print(x.get_type("list"))

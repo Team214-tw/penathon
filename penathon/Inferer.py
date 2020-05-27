@@ -3,19 +3,9 @@ import copy
 import builtins
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 
-from .Typer import seeker
 from .TypeWrapper import TypeWrapper
 from .SymTable import SymTable
 
-class Module:
-    def __init__(self, module_name):
-        self.module_name = module_name
-
-    def typeof(self, name):
-        return seeker.get_module_symtable(self.module_name).typeof(name)
-
-    def reveal(self):
-        return self.module_name
 
 BASIC_TYPES = {
     "int": int,
@@ -37,8 +27,6 @@ class Inferer:
         self.func_ret_type = []
 
     def infer(self, tree):
-        self.env.add('builtins', Module('builtins'))
-
         for i in tree.body:
             self.infer_stmt(i)
 
@@ -176,14 +164,12 @@ class Inferer:
         elif isinstance(e, ast.Import):
             for n in e.names:
                 module_name = n.name
-                as_name = n.asname or n.name
-                self.env.add(as_name, Module(module_name))
+                self.env.add_module(module_name, n.asname)
 
         elif isinstance(e, ast.ImportFrom):
             for n in e.names:
                 module_name = f"{e.module}.{n.name}"
-                as_name = n.asname or module_name
-                self.env.add(as_name, Module(module_name))
+                self.env.add_module(module_name, n.asname)
 
         elif isinstance(e, ast.Global):
             pass
@@ -347,14 +333,7 @@ class Inferer:
         elif isinstance(e, ast.Name):
             if e.id in BASIC_TYPES:
                 return TypeWrapper(BASIC_TYPES[e.id])
-            try:
-                return self.env.typeof(e.id)
-            except:
-                nameType = seeker.get_module_symtable(e.id)
-                if isinstance(nameType, SymTable):
-                    return TypeWrapper(nameType.env, class_name=e.id)
-                else:
-                    return nameType
+            return self.env.typeof(e.id)
 
         elif isinstance(e, ast.List):
             list_class_def = self.env.typeof('builtins').typeof('list')
