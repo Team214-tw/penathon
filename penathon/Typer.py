@@ -84,6 +84,7 @@ TYPE_DICT = {
     "memoryview": memoryview,
     "complex": complex,
     "range": range,
+    "IO": typing.IO,
 }
 
 TYPING_WITH_TWO_ARGS = [Dict, Callable, DefaultDict]
@@ -175,7 +176,10 @@ class Visitor(ast.NodeVisitor):
             if n.arg == "self" or n.arg == "cls" or n.arg == "metacls":
                 continue
             result.append(self.visit(n))
-        return result
+        if len(node.defaults) == 0:
+            return result
+        else:
+            return result[: -len(node.defaults)]
 
     def visit_arg(self, node: ast.arg):
         return AnnoVisitor().visit(node.annotation)
@@ -346,18 +350,22 @@ class Typer:
 if __name__ == "__main__":
     x = Typer()
 
-    print(x.get_type("os").symtable)
-    print(x.get_type("builtins"))
-    print(x.get_type("time"))
-    print(x.get_type("int"))
-    print(x.get_type("list"))
-    print(x.get_type("str"))
-    print(x.get_type("os.path"))
-    print(x.get_type("os"))
+    # print(x.get_type("os").symtable)
+    import pprint
 
-    print(x.get_type("time.time"))
-    print(x.get_type("int.__sub__"))
-    print(x.get_type("list.append"))
-    print(x.get_type("str.expandtabs"))
-    print(x.get_type("os.path.isfile"))
-    print(x.get_type("os.path.altsep"))
+    pp = pprint.PrettyPrinter(indent=4)
+    pp.pprint(x.get_type("builtins").symtable)
+    # print()
+    # print(x.get_type("time"))
+    # print(x.get_type("int"))
+    # print(x.get_type("list"))
+    # print(x.get_type("str"))
+    # print(x.get_type("os.path"))
+    # print(x.get_type("os"))
+
+    # print(x.get_type("time.time"))
+    # print(x.get_type("int.__sub__"))
+    # print(x.get_type("list.append"))
+    # print(x.get_type("str.expandtabs"))
+    # print(x.get_type("os.path.isfile"))
+    # print(x.get_type("os.path.altsep"))
