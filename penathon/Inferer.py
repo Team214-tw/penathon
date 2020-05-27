@@ -134,7 +134,14 @@ class Inferer:
                 self.infer_stmt(i)
 
         elif isinstance(e, ast.With):
-            pass
+            for i in e.items:
+                contextType = self.infer_expr(i.context_expr)
+                if i.optional_vars:
+                    env, name = self.infer_expr(i.optional_vars)
+                    env[name] = contextType
+
+            for i in e.body:
+                self.infer_stmt(i)
 
         elif isinstance(e, ast.AsyncWith):
             pass

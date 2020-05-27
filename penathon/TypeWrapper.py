@@ -15,6 +15,7 @@ BASIC_TYPES = {
     "bytearray": bytearray,
     "complex": complex,
 }
+BASIC_TYPES_LIST = [int, str, float, type(None), bytes, object, bool, type, slice, bytearray, complex]
 
 class TypeWrapper:
     def __init__(self, t, class_name=None):
@@ -129,6 +130,8 @@ class TypeWrapper:
         try:
             return r.__origin__
         except:
+            if r in BASIC_TYPES_LIST:
+                return r
             return type(r)
 
     # helper function
