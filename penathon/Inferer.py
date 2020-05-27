@@ -174,7 +174,14 @@ class Inferer:
                 self.env.add_module(module_name, n.asname, target=n.name)
 
         elif isinstance(e, ast.Global):
-            pass
+            env = self.env
+            while env.parent is not None:
+                env = env.parent
+
+            for i in e.names:
+                if i in self.env.env:
+                    raise Exception(f"{i} is assigned to before global declaration")
+                self.env.add(i, env.typeof(i))
 
         elif isinstance(e, ast.Nonlocal):
             pass
