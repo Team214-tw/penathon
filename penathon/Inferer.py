@@ -2,17 +2,24 @@ import ast
 import copy
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 
-from .Typer import Typer
+from .Typer import seeker
 from .TypeWrapper import TypeWrapper
-from .CodeGenerator import CodeGenerator
 from .SymTable import SymTable
-from .SymTableEntry import *
+
+class Module:
+    def __init__(self, module_name):
+        self.module_name = module_name
+
+    def typeof(self, name):
+        return seeker.get_module_symtable(self.module_name).typeof(name)
+
+    def reveal(self):
+        return self.module_name
 
 
 class Inferer:
     def __init__(self):
         self.env = SymTable('root')
-        self.seeker = Typer()
 
     def infer(self, tree):
         for i in tree.body:
@@ -158,12 +165,16 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Import):
-            # self.env.add(e)
-            pass
+            for n in e.names:
+                module_name = n.name
+                as_name = n.asname or n.name
+                self.env.add(as_name, Module(module_name))
 
         elif isinstance(e, ast.ImportFrom):
-            # self.env.add(e)
-            pass
+            for n in e.names:
+                module_name = f"{e.module}.{n.name}"
+                as_name = n.asname or module_name
+                self.env.add(as_name, Module(module_name))
 
         elif isinstance(e, ast.Global):
             pass
@@ -328,7 +339,8 @@ class Inferer:
             return TypeWrapper(type(e.value))
 
         elif isinstance(e, ast.Attribute):
-            pass
+            valueType = self.infer_expr(e.value)
+            return valueType.typeof(e.attr)
 
         elif isinstance(e, ast.Subscript):
             pass
@@ -337,12 +349,10 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            # return self.env.typeof(e.id)
-            pass
+            return self.env.typeof(e.id)
 
         elif isinstance(e, ast.List):
-
-            print(self.seeker.get_type('builtins.list'))
+            pass
             # bodyType = []
             # for elt in e.elts:
             #     bodyType.append(self.infer_expr(elt))

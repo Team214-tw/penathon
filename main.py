@@ -4,7 +4,7 @@ import astor
 import typing
 from argparse import ArgumentParser
 from penathon.Inferer import Inferer
-from penathon.CodeGenerator import CodeGenerator
+# from penathon.CodeGenerator import CodeGenerator
 
 
 def main():

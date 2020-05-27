@@ -346,29 +346,29 @@ class Seeker:
     def __init__(self):
         self.typer = Typer()
 
-    def record_symtable(self, symtable, module, module_name):
+    def _record_symtable(self, symtable, module, module_name):
         for k, v in module.items():
             # submodule or class
             if isinstance(v, dict):
-                submodule_name = f"{module_name}.{k}"
+                submodule_name = f"{k}"
                 submodule_symtable = SymTable(submodule_name, symtable)
-                self.record_symtable(submodule_symtable, v, submodule_name)
+                self._record_symtable(submodule_symtable, v, submodule_name)
                 symtable.add(submodule_name, submodule_symtable)
             else:
                 symtable.add(k, TypeWrapper(v))
 
-    def add_module(self, module_name, parent_sym_table):
-        module_symtable = SymTable(module_name, parent_sym_table)
+    def get_module_symtable(self, module_name):
+        module_symtable = SymTable(module_name)
         module = self.typer.get_type(module_name)
-        self.record_symtable(module_symtable, module, module_name)
-        parent_sym_table.add(module_name, module_symtable)
+        self._record_symtable(module_symtable, module, module_name)
+        return module_symtable
 
+seeker = Seeker()
 
 if __name__ == "__main__":
     x = Seeker()
-    root = SymTable('root')
-    x.add_module("os", root)
-    root.print()
+    symtable = x.get_module_symtable("builtins")
+    symtable.print()
 
     # print(x.get_type("os").symtable)
     import pprint
