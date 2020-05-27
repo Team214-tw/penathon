@@ -15,5 +15,5 @@ class A():
     def B(self):
         return self.c
 
-a = A(1, 2, True)
-c = a.B()
+d = A(1, 2, True)
+c = d.B()

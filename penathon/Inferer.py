@@ -15,8 +15,10 @@ class Inferer:
 
     def infer(self, tree):
         for i in tree.body:
-            self.infer_stmt(i)
-
+            try:
+                self.infer_stmt(i)
+            except:
+                continue
         return self.env
 
     def infer_stmt(self, e):
@@ -428,7 +430,10 @@ class Inferer:
             self.infer_stmt(i)
 
         # generate body type
-        bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) else type(None)
+        if self.cur_class is not None and e.name == "__init__":
+            bodyType = type(None)
+        else:
+            bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) else type(None)
         func_type.type = Callable[argList, bodyType]
         func_type.lazy_func_info = None
 
