@@ -1,4 +1,5 @@
 import ast
+import builtins
 import typing
 
 
@@ -12,10 +13,7 @@ class SymTable:
         self.env[name] = t
 
     def typeof(self, name):
-        t = self.get(name)
-        if t is None:
-            raise Exception(f"{name} not found in symbol table: {self._get_symtable_name()}")
-        return t
+        return self.get(name)
 
     def get(self, name):
         if name in self.env:
@@ -23,7 +21,7 @@ class SymTable:
         elif self.parent is not None:
             return self.parent.get(name)
         else:
-            return None
+            raise Exception(f"{name} not found in symbol table: {self._get_symtable_name()}")
 
     def _get_symtable_name(self):
         if self.parent == None:
@@ -58,6 +56,7 @@ class SymTable:
 
         for k, v in self.env.items():
             if isinstance(v, SymTable):
+                print(f"{indent}    {k}:")
                 v.print(level + 1)
             else:
                 print(f"{indent}    {k}: {v.reveal()}")

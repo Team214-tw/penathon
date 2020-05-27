@@ -1,5 +1,6 @@
 import ast
 import copy
+import builtins
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 
 from .Typer import seeker
@@ -16,12 +17,27 @@ class Module:
     def reveal(self):
         return self.module_name
 
+BASIC_TYPES = {
+    "int": int,
+    "str": str,
+    "float": float,
+    "None": type(None),
+    "bytes": bytes,
+    "object": object,
+    "bool": bool,
+    "type": type,
+    "slice": slice,
+    "bytearray": bytearray,
+    "complex": complex,
+}
 
 class Inferer:
     def __init__(self):
         self.env = SymTable('root')
 
     def infer(self, tree):
+        self.env.add('builtins', Module('builtins'))
+
         for i in tree.body:
             self.infer_stmt(i)
 
@@ -90,10 +106,11 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Assign):
-            # valueType = self.infer_expr(e.value)
+            valueType = self.infer_expr(e.value)
+            for t in e.targets:
+                self.env.add(t.id, valueType)
             # self.env.add(e, valueType)
             # return valueType
-            pass
 
         elif isinstance(e, ast.AugAssign):
             pass
@@ -302,6 +319,8 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Call):
+            callType = self.infer_expr(e.func)
+
             # # get function type
             # funcName = self._get_func_name(e.func)
             # funcType = self.env.typeof(funcName)
@@ -349,23 +368,31 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            return self.env.typeof(e.id)
+            if e.id in BASIC_TYPES:
+                return TypeWrapper(BASIC_TYPES[e.id])
+            try:
+                return self.env.typeof(e.id)
+            except:
+                if e.id in dir(builtins):
+                    return self.env.typeof('builtins').typeof(e.id)
 
         elif isinstance(e, ast.List):
-            pass
-            # bodyType = []
-            # for elt in e.elts:
-            #     bodyType.append(self.infer_expr(elt))
-            # bodyType = tuple(bodyType)
-            # return List[Union[bodyType]] if len(bodyType) > 0 else List
+            list_class_def = self.env.typeof('builtins').typeof('list')
+            list_class_inst = TypeWrapper(list_class_def.env, class_name='list')
+
+            for elmt in e.elts:
+                list_class_inst.bound(self.infer_expr(elmt).reveal())
+
+            return list_class_inst
 
         elif isinstance(e, ast.Tuple):
-            # bodyType = []
-            # for elt in e.elts:
-            #     bodyType.append(self.infer_expr(elt))
-            # bodyType = tuple(bodyType)
-            # return Tuple[Union[bodyType]] if len(bodyType) > 0 else Tuple
-            pass
+            tuple_class_def = self.env.typeof('builtins').typeof('tuple')
+            tuple_class_inst = TypeWrapper(tuple_class_def.env, class_name='tuple')
+
+            for elmt in e.elts:
+                tuple_class_inst.bound(self.infer_expr(elmt).reveal())
+
+            return tuple_class_inst
 
         else:
             raise Exception(f"{e.lineno}: Unsupported syntax")

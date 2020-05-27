@@ -342,10 +342,7 @@ class Typer:
             return self._get_type(splitted_name)
 
 
-class Seeker:
-    def __init__(self):
-        self.typer = Typer()
-
+class Seeker(Typer):
     def _record_symtable(self, symtable, module, module_name):
         for k, v in module.items():
             # submodule or class
@@ -359,7 +356,7 @@ class Seeker:
 
     def get_module_symtable(self, module_name):
         module_symtable = SymTable(module_name)
-        module = self.typer.get_type(module_name)
+        module = self.get_type(module_name)
         self._record_symtable(module_symtable, module, module_name)
         return module_symtable
 
@@ -367,7 +364,7 @@ seeker = Seeker()
 
 if __name__ == "__main__":
     x = Seeker()
-    symtable = x.get_module_symtable("builtins")
+    symtable = x.get_module_symtable("tuple")
     symtable.print()
 
     # print(x.get_type("os").symtable)
