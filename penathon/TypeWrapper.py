@@ -121,6 +121,13 @@ class TypeWrapper:
 
         return self.type
 
+    def reveal_origin(self):
+        r = self.reveal()
+        try:
+            return r.__origin__
+        except:
+            return type(r)
+
     # helper function
     @staticmethod
     def is_Callable(t):  # caveat: can't use isinstance
@@ -192,6 +199,10 @@ class TypeWrapper:
     @staticmethod
     def get_callable_args(t):
         return list(t.__args__[:-1])
+
+    @staticmethod
+    def get_typevar_bound(t):
+        return t.__bound__
 
     @staticmethod
     def bound_type_var(tv, t):

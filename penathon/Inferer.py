@@ -296,7 +296,10 @@ class Inferer:
             callee = self.infer_expr(e.func)
 
             if callee.is_class():
-                funcType = callee.typeof("__init__")
+                try:
+                    funcType = callee.typeof("__init__") # try to unify init
+                except:
+                    return callee
             else:
                 funcType = callee
 
@@ -354,7 +357,10 @@ class Inferer:
             elif ctx == "Load":
                 if e.id in BASIC_TYPES:
                     return TypeWrapper(BASIC_TYPES[e.id])
-                return self.env.typeof(e.id)
+                nameType = self.env.typeof(e.id)
+                if isinstance(nameType, SymTable):
+                    return TypeWrapper(nameType.env, e.id)
+                return nameType
             else:
                 raise Exception("Not implemented name operation")
 
@@ -383,11 +389,12 @@ class Inferer:
         if caller.reveal() == callee.reveal():
             return
 
-        elif TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
-            caller_args = TypeWrapper.get_arg(caller)
-            callee_args = TypeWrapper.get_arg(callee)
-            for caller_t, callee_t in zip(caller_args, callee_args):
-                self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
+        elif caller.is_type_var() and callee.is_type_var():
+            callerType = TypeWrapper.get_typevar_bound(caller.reveal())
+            calleeType = TypeWrapper.get_typevar_bound(callee.reveal())
+            unionType = Union[tuple(filter(None, [callerType, calleeType]))]
+            caller.union(unionType)
+            callee.union(unionType)
 
         elif caller.is_type_var():
             caller.union(callee.reveal())
@@ -405,8 +412,17 @@ class Inferer:
                 raise Exception("Function args not matched")
 
             for caller_t, callee_t in zip(caller_args, callee_args):
+                if caller_t is Ellipsis or callee_t is Ellipsis:
+                    break
                 self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
             self.unify(TypeWrapper(caller_body), TypeWrapper(callee_body))
+
+        elif issubclass(caller.reveal_origin(), callee.reveal_origin()):
+            if TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
+                caller_args = TypeWrapper.get_arg(caller)
+                callee_args = TypeWrapper.get_arg(callee)
+                for caller_t, callee_t in zip(caller_args, callee_args):
+                    self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
 
         else:
             raise Exception(f"Function args: {caller.reveal()} and {callee.reveal()} are not matched")

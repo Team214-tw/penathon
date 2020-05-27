@@ -335,11 +335,11 @@ class Typer:
         splitted_name = name.split(".")
         if splitted_name[0] in dir(builtins):
             splitted_name = ["builtins"] + splitted_name
-        try:
-            return self._get_type(splitted_name)
-        except KeyError:
-            self._record_type(splitted_name)
-            return self._get_type(splitted_name)
+        # try:
+        #     return self._get_type(splitted_name)
+        # except KeyError:
+        self._record_type(splitted_name)
+        return self._get_type(splitted_name)
 
 
 class Seeker(Typer):
@@ -348,7 +348,7 @@ class Seeker(Typer):
             # submodule or class
             if isinstance(v, dict):
                 submodule_name = f"{k}"
-                submodule_symtable = SymTable.SymTable(submodule_name, symtable)
+                submodule_symtable = SymTable.SymTable(submodule_name, parent=symtable)
                 self._record_symtable(submodule_symtable, v, submodule_name)
                 symtable.add(submodule_name, submodule_symtable)
             else:
@@ -359,6 +359,10 @@ class Seeker(Typer):
         module = self.get_type(module_name)
         self._record_symtable(module_symtable, module, module_name)
         return module_symtable
+
+    def get_builtins_obj(self, target):
+        builtins_symtable = self.get_module_symtable("builtins")
+        return builtins_symtable.typeof(target)
 
 
 if __name__ == "__main__":

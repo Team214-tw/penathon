@@ -42,8 +42,7 @@ class SymTable:
             return self.get(name)
         except:
             try:
-                builtins_symtable = seeker.get_module_symtable('builtins')
-                builtins_obj = builtins_symtable.get(name)
+                builtins_obj = seeker.get_builtins_obj(name)
                 if isinstance(builtins_obj, SymTable):
                     return TypeWrapper(builtins_obj.env, class_name=name)
                 else:
