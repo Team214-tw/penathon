@@ -313,7 +313,7 @@ class Typer:
                 if i not in cur:
                     cur[i] = {}
                 cur = cur[i]
-            if len(file_names) > 1 and "__init__.pyi" not in file_names:
+            if len(file_names) > 1 and "__init__.pyi" not in fn:
                 cur[fn.split(os.sep)[-1].replace(".pyi", "")] = {}
                 cur = cur[fn.split(os.sep)[-1].replace(".pyi", "")]
             for key, val in v.storage.items():
@@ -347,17 +347,17 @@ if __name__ == "__main__":
     x = Typer()
 
     print(x.get_type("os").symtable)
-    # print(x.get_type("builtins"))
-    # print(x.get_type("time"))
-    # print(x.get_type("int"))
-    # print(x.get_type("list"))
-    # print(x.get_type("str"))
-    # print(x.get_type("os.path"))
-    # print(x.get_type("os"))
+    print(x.get_type("builtins"))
+    print(x.get_type("time"))
+    print(x.get_type("int"))
+    print(x.get_type("list"))
+    print(x.get_type("str"))
+    print(x.get_type("os.path"))
+    print(x.get_type("os"))
 
-    # print(x.get_type("time.time"))
-    # print(x.get_type("int.__sub__"))
-    # print(x.get_type("list.append"))
-    # print(x.get_type("str.expandtabs"))
-    # print(x.get_type("os.path.isfile"))
-    # print(x.get_type("os.path.altsep"))
+    print(x.get_type("time.time"))
+    print(x.get_type("int.__sub__"))
+    print(x.get_type("list.append"))
+    print(x.get_type("str.expandtabs"))
+    print(x.get_type("os.path.isfile"))
+    print(x.get_type("os.path.altsep"))
