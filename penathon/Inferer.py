@@ -4,7 +4,6 @@ from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 
 from .Typer import Typer
 from .CodeGenerator import CodeGenerator
-from .Preprocessor import Preprocessor
 from .SymTable import SymTable
 from .SymTableEntry import *
 
@@ -13,86 +12,81 @@ class Inferer:
     def __init__(self):
         self.env = SymTable('root')
         self.seeker = Typer()
-        self.preprocessor = Preprocessor()
-        self.visitReturn = False
-        self.Return = None
-        self.tvid = 0  # type variable id
 
     def infer(self, tree):
-        # mtree = self.preprocessor.preprocess(tree)  # modified tree
-
         for i in tree.body:
             inferedType = self.infer_stmt(i)
-            if isinstance(inferedType, TypeVar):
-                print(i.lineno, f"{inferedType} => {inferedType.__bound__}")
-            else:
-                print(i.lineno, inferedType)
+            print(i.lineno, inferedType)
 
         return self.env
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
-            newSymTable = SymTable(e.name, self.env)
-            self.env = newSymTable
+            # newSymTable = SymTable(e.name, self.env)
+            # self.env = newSymTable
 
-            # create type variables for each argument
-            argList = list()
-            for i in e.args.args:
-                argName = i.arg
-                argTypeVar = TypeVar(self._get_tvid())
-                self.env.write(argName, AssignSymbol(argName, argTypeVar))
-                argList.append(argTypeVar)
+            # # create type variables for each argument
+            # argList = list()
+            # for i in e.args.args:
+            #     argName = i.arg
+            #     argTypeVar = TypeVar(self._get_tvid())
+            #     self.env.write(argName, AssignSymbol(argName, argTypeVar))
+            #     argList.append(argTypeVar)
 
-            # infer body type
-            infBodyType = []
-            for i in e.body:
-                potentialType = self.infer_stmt(i)
-                if self.visitReturn:
-                    infBodyType.append(self.Return)
-                    self.visitReturn = False
+            # # infer body type
+            # infBodyType = []
+            # for i in e.body:
+            #     potentialType = self.infer_stmt(i)
+            #     if self.visitReturn:
+            #         infBodyType.append(self.Return)
+            #         self.visitReturn = False
 
-            # generate body type
-            if len(infBodyType) == 0:
-                bodyType = None
-            else:
-                bodyType = Union[tuple(infBodyType)]
-            inferredType = Callable[argList, bodyType]
+            # # generate body type
+            # if len(infBodyType) == 0:
+            #     bodyType = None
+            # else:
+            #     bodyType = Union[tuple(infBodyType)]
+            # inferredType = Callable[argList, bodyType]
 
-            # context switch back
-            self.env = self.env.parent
-            self.env.add(e, inferredType)
+            # # context switch back
+            # self.env = self.env.parent
+            # self.env.add(e, inferredType)
 
-            return inferredType
+            # return inferredType
+            pass
 
         elif isinstance(e, ast.AsyncFunctionDef):
             pass
 
         elif isinstance(e, ast.ClassDef):
-            newSymTable = SymTable(self.env)
-            self.env = newSymTable
-            for i in e.body:
-                potentialType = self.infer_stmt(i)
-            classType = ClassDefSymbol(e.name, self.env)
-            self.env.parent.add(e, classType)
-            self.env = self.env.parent
-            return classType
+            # newSymTable = SymTable(self.env)
+            # self.env = newSymTable
+            # for i in e.body:
+            #     potentialType = self.infer_stmt(i)
+            # classType = ClassDefSymbol(e.name, self.env)
+            # self.env.parent.add(e, classType)
+            # self.env = self.env.parent
+            # return classType
+            pass
 
         elif isinstance(e, ast.Return):
-            if self.visitReturn:
-                self.Return = Union[(self.Return, self.infer_expr(e.value))]
-            else:
-                self.Return = self.Return, self.infer_expr(e.value)
-                self.visitReturn = True
-                self.Return = self.infer_expr(e.value)
-            return self.infer_expr(e.value)
+            # if self.visitReturn:
+            #     self.Return = Union[(self.Return, self.infer_expr(e.value))]
+            # else:
+            #     self.Return = self.Return, self.infer_expr(e.value)
+            #     self.visitReturn = True
+            #     self.Return = self.infer_expr(e.value)
+            # return self.infer_expr(e.value)
+            pass
 
         elif isinstance(e, ast.Delete):
             pass
 
         elif isinstance(e, ast.Assign):
-            valueType = self.infer_expr(e.value)
-            self.env.add(e, valueType)
-            return valueType
+            # valueType = self.infer_expr(e.value)
+            # self.env.add(e, valueType)
+            # return valueType
+            pass
 
         elif isinstance(e, ast.AugAssign):
             pass
@@ -107,34 +101,36 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.While):
-            infBodyType = []
-            self.infer_expr(e.test)
-            for i in e.body:
-                potentialType = self.infer_stmt(i)
+            # infBodyType = []
+            # self.infer_expr(e.test)
+            # for i in e.body:
+            #     potentialType = self.infer_stmt(i)
 
-            # generate body type
-            if len(infBodyType) == 0:
-                bodyType = None
-            else:
-                bodyType = Union[tuple(infBodyType)]
+            # # generate body type
+            # if len(infBodyType) == 0:
+            #     bodyType = None
+            # else:
+            #     bodyType = Union[tuple(infBodyType)]
 
-            return bodyType
+            # return bodyType
+            pass
 
         elif isinstance(e, ast.If):
-            # infer body type
-            infBodyType = []
-            for i in e.body:
-                potentialType = self.infer_stmt(i)
-            for i in e.orelse:
-                potentialType = self.infer_stmt(i)
+            # # infer body type
+            # infBodyType = []
+            # for i in e.body:
+            #     potentialType = self.infer_stmt(i)
+            # for i in e.orelse:
+            #     potentialType = self.infer_stmt(i)
 
-            # generate body type
-            if len(infBodyType) == 0:
-                bodyType = None
-            else:
-                bodyType = Union[tuple(infBodyType)]
+            # # generate body type
+            # if len(infBodyType) == 0:
+            #     bodyType = None
+            # else:
+            #     bodyType = Union[tuple(infBodyType)]
 
-            return bodyType
+            # return bodyType
+            pass
 
         elif isinstance(e, ast.With):
             pass
@@ -146,25 +142,28 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Try):
-            for i in e.body:
-                potentialType = self.infer_stmt(i)
+            # for i in e.body:
+            #     potentialType = self.infer_stmt(i)
 
-            for i in e.handlers:
-                #  exceptionType = self.infer_expr(i.type)
-                #  if not isinstance(exceptionType, BaseException):
-                    #  raise Exception("Exception type does not match.")
+            # for i in e.handlers:
+            #     #  exceptionType = self.infer_expr(i.type)
+            #     #  if not isinstance(exceptionType, BaseException):
+            #         #  raise Exception("Exception type does not match.")
 
-                for j in i.body:
-                    potentialType = self.infer_stmt(j)
+            #     for j in i.body:
+            #         potentialType = self.infer_stmt(j)
+            pass
 
         elif isinstance(e, ast.Assert):
             pass
 
         elif isinstance(e, ast.Import):
-            self.env.add(e)
+            # self.env.add(e)
+            pass
 
         elif isinstance(e, ast.ImportFrom):
-            self.env.add(e)
+            # self.env.add(e)
+            pass
 
         elif isinstance(e, ast.Global):
             pass
@@ -195,73 +194,77 @@ class Inferer:
         #     pass
 
         elif isinstance(e, ast.BinOp):
-            leftType = self.infer_expr(e.left)
-            rightType = self.infer_expr(e.right)
+            # leftType = self.infer_expr(e.left)
+            # rightType = self.infer_expr(e.right)
 
-            if Inferer._coerce(leftType, rightType):
-                leftType = rightType
+            # if Inferer._coerce(leftType, rightType):
+            #     leftType = rightType
 
-            funcName = self._get_magic(e.op)
-            try:
-                leftOriType = self._get_original_type(leftType).__name__.lower()
-                funcType = self.seeker.get_type(f"{leftOriType}.{funcName}").reveal()
-            except KeyError:
-                raise Exception(f"{leftType} object has no method {funcName}")
+            # funcName = self._get_magic(e.op)
+            # try:
+            #     leftOriType = self._get_original_type(leftType).__name__.lower()
+            #     funcType = self.seeker.get_type(f"{leftOriType}.{funcName}").reveal()
+            # except KeyError:
+            #     raise Exception(f"{leftType} object has no method {funcName}")
 
-            argList = [rightType]
-            resultType = TypeVar(self._get_tvid())
-            self._unify_callable(Callable[argList, resultType], funcType)
+            # argList = [rightType]
+            # resultType = TypeVar(self._get_tvid())
+            # self._unify_callable(Callable[argList, resultType], funcType)
 
-            return resultType.__bound__
+            # return resultType.__bound__
+            pass
 
         elif isinstance(e, ast.UnaryOp):
             pass
 
         elif isinstance(e, ast.Lambda):
-            newSymTable = SymTable(None, self.env)
-            self.env = newSymTable
+            # newSymTable = SymTable(None, self.env)
+            # self.env = newSymTable
 
-            # create type variables for each argument
-            argList = list()
-            for i in e.args.args:
-                argName = i.arg
-                argTypeVar = TypeVar(self._get_tvid())
-                self.env.write(argName, AssignSymbol(argName, argTypeVar))
-                argList.append(argTypeVar)
+            # # create type variables for each argument
+            # argList = list()
+            # for i in e.args.args:
+            #     argName = i.arg
+            #     argTypeVar = TypeVar(self._get_tvid())
+            #     self.env.write(argName, AssignSymbol(argName, argTypeVar))
+            #     argList.append(argTypeVar)
 
-            # infer body type
-            bodyType = self.infer_expr(e.body)
-            inferredType = Callable[argList, bodyType]
+            # # infer body type
+            # bodyType = self.infer_expr(e.body)
+            # inferredType = Callable[argList, bodyType]
 
-            # context switch back
-            self.env = self.env.parent
+            # # context switch back
+            # self.env = self.env.parent
 
-            return inferredType
+            # return inferredType
+            pass
 
         elif isinstance(e, ast.IfExp):
             pass
 
         elif isinstance(e, ast.Dict):
-            if len(e.keys) == 0:
-                keyType = Any
-            else:
-                keyType = []
-                for i in e.keys:
-                    keyType.append(self.infer_expr(i))
-                keyType = Union[tuple(keyType)]
+            # if len(e.keys) == 0:
+            #     keyType = Any
+            # else:
+            #     keyType = []
+            #     for i in e.keys:
+            #         keyType.append(self.infer_expr(i))
+            #     keyType = Union[tuple(keyType)]
 
-            if len(e.values) == 0:
-                valueType = Any
-            else:
-                valueType = []
-                for i in e.values:
-                    valueType.append(self.infer_expr(i))
-                valueType = Union[tuple(valueType)]
+            # if len(e.values) == 0:
+            #     valueType = Any
+            # else:
+            #     valueType = []
+            #     for i in e.values:
+            #         valueType.append(self.infer_expr(i))
+            #     valueType = Union[tuple(valueType)]
 
-            return Dict[keyType, valueType]
+            # return Dict[keyType, valueType]
+            pass
 
         elif isinstance(e, ast.Set):
-            return Set
+            # return Set
+            pass
 
         elif isinstance(e, ast.ListComp):
             pass
@@ -288,31 +291,32 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Call):
-            # get function type
-            funcName = self._get_func_name(e.func)
-            funcType = self.env.typeof(funcName)
+            # # get function type
+            # funcName = self._get_func_name(e.func)
+            # funcType = self.env.typeof(funcName)
 
-            # built-in function call
-            if funcName == 'list':
-                return self.infer_expr(ast.List(elts=e.args))
-            elif funcName == 'set':
-                return self.infer_expr(ast.Set(elts=e.args))
-            elif funcName == 'tuple':
-                return self.infer_expr(ast.Tuple(elts=e.args))
-            elif funcName == 'dict':
-                return Dict  # TODO
+            # # built-in function call
+            # if funcName == 'list':
+            #     return self.infer_expr(ast.List(elts=e.args))
+            # elif funcName == 'set':
+            #     return self.infer_expr(ast.Set(elts=e.args))
+            # elif funcName == 'tuple':
+            #     return self.infer_expr(ast.Tuple(elts=e.args))
+            # elif funcName == 'dict':
+            #     return Dict  # TODO
 
-            # infer call type
-            argList = list()
-            for i in e.args:
-                argType = self.infer_expr(i)
-                argList.append(argType)
-            resultType = TypeVar(self._get_tvid())
+            # # infer call type
+            # argList = list()
+            # for i in e.args:
+            #     argType = self.infer_expr(i)
+            #     argList.append(argType)
+            # resultType = TypeVar(self._get_tvid())
 
-            # infer def type and result type
-            self._unify_callable(Callable[argList, resultType], funcType)
+            # # infer def type and result type
+            # self._unify_callable(Callable[argList, resultType], funcType)
 
-            return resultType.__bound__
+            # return resultType.__bound__
+            pass
 
         elif isinstance(e, ast.FormattedValue):
             pass
@@ -321,7 +325,8 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Constant):
-            return type(e.value)
+            # return type(e.value)
+            pass
 
         elif isinstance(e, ast.Attribute):
             pass
@@ -333,21 +338,24 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            return self.env.typeof(e.id)
+            # return self.env.typeof(e.id)
+            pass
 
         elif isinstance(e, ast.List):
-            bodyType = []
-            for elt in e.elts:
-                bodyType.append(self.infer_expr(elt))
-            bodyType = tuple(bodyType)
-            return List[Union[bodyType]] if len(bodyType) > 0 else List
+            # bodyType = []
+            # for elt in e.elts:
+            #     bodyType.append(self.infer_expr(elt))
+            # bodyType = tuple(bodyType)
+            # return List[Union[bodyType]] if len(bodyType) > 0 else List
+            pass
 
         elif isinstance(e, ast.Tuple):
-            bodyType = []
-            for elt in e.elts:
-                bodyType.append(self.infer_expr(elt))
-            bodyType = tuple(bodyType)
-            return Tuple[Union[bodyType]] if len(bodyType) > 0 else Tuple
+            # bodyType = []
+            # for elt in e.elts:
+            #     bodyType.append(self.infer_expr(elt))
+            # bodyType = tuple(bodyType)
+            # return Tuple[Union[bodyType]] if len(bodyType) > 0 else Tuple
+            pass
 
         else:
             raise Exception(f"{e.lineno}: Unsupported syntax")

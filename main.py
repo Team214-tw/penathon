@@ -16,11 +16,12 @@ def main():
         x = ast.parse(f.read())
 
     inferer = Inferer()
-    cg = CodeGenerator()
+    # cg = CodeGenerator()
     symbol_table = inferer.infer(x)
-    tree_with_type = cg.gen(x, symbol_table)
-    print('-----')
-    print(astor.to_source(tree_with_type), end='')
+    print(symbol_table)
+    # tree_with_type = cg.gen(x, symbol_table)
+    # print('-----')
+    # print(astor.to_source(tree_with_type), end='')
 
 
 if __name__ == "__main__":
