@@ -34,6 +34,7 @@ BASIC_TYPES = {
 class Inferer:
     def __init__(self):
         self.env = SymTable('root')
+        self.func_ret_type = []
 
     def infer(self, tree):
         self.env.add('builtins', Module('builtins'))
@@ -45,38 +46,35 @@ class Inferer:
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
-            # newSymTable = SymTable(e.name, self.env)
-            # self.env = newSymTable
+            newSymTable = SymTable(e.name, self.env)
+            self.env = newSymTable
 
-            # # create type variables for each argument
-            # argList = list()
-            # for i in e.args.args:
-            #     argName = i.arg
-            #     argTypeVar = TypeVar(self._get_tvid())
-            #     self.env.write(argName, AssignSymbol(argName, argTypeVar))
-            #     argList.append(argTypeVar)
+            # save current function return type (for nested function)
+            func_ret_type_bak = self.func_ret_type
+            self.func_ret_type = []
 
-            # # infer body type
-            # infBodyType = []
-            # for i in e.body:
-            #     potentialType = self.infer_stmt(i)
-            #     if self.visitReturn:
-            #         infBodyType.append(self.Return)
-            #         self.visitReturn = False
+            # create type variables for each argument
+            argList = list()
+            for i in e.args.args:
+                argName = i.arg
+                argTypeVar = TypeWrapper.new_type_var()
+                self.env.add(argName, argTypeVar)
+                argList.append(argTypeVar.reveal())
 
-            # # generate body type
-            # if len(infBodyType) == 0:
-            #     bodyType = None
-            # else:
-            #     bodyType = Union[tuple(infBodyType)]
-            # inferredType = Callable[argList, bodyType]
+            # infer body type
+            for i in e.body:
+                self.infer_stmt(i)
 
-            # # context switch back
-            # self.env = self.env.parent
-            # self.env.add(e, inferredType)
+            # generate body type
+            bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) else type(None)
+            inferredType = TypeWrapper(Callable[argList, bodyType])
 
-            # return inferredType
-            pass
+            # restore function return type
+            self.func_ret_type = func_ret_type_bak
+
+            # context switch back
+            self.env = self.env.parent
+            self.env.add(e.name, inferredType)
 
         elif isinstance(e, ast.AsyncFunctionDef):
             pass
@@ -93,14 +91,8 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Return):
-            # if self.visitReturn:
-            #     self.Return = Union[(self.Return, self.infer_expr(e.value))]
-            # else:
-            #     self.Return = self.Return, self.infer_expr(e.value)
-            #     self.visitReturn = True
-            #     self.Return = self.infer_expr(e.value)
-            # return self.infer_expr(e.value)
-            pass
+            valueType = self.infer_expr(e.value)
+            self.func_ret_type.append(valueType)
 
         elif isinstance(e, ast.Delete):
             pass
@@ -280,15 +272,6 @@ class Inferer:
                 dict_class_inst.bound((key_type, value_type))
 
             return dict_class_inst
-            # if len(e.values) == 0:
-            #     valueType = Any
-            # else:
-            #     valueType = []
-            #     for i in e.values:
-            #         valueType.append(self.infer_expr(i))
-            #     valueType = Union[tuple(valueType)]
-
-            # return Dict[keyType, valueType]
 
         elif isinstance(e, ast.Set):
             set_class_def = self.env.typeof('builtins').typeof('set')
@@ -327,34 +310,20 @@ class Inferer:
             callType = self.infer_expr(e.func)
 
             if callType.is_class(): # TODO: list, tuple, dict, set arguments
-                return copy.deepcopy(callType)
+                return callType
 
-            # # get function type
-            # funcName = self._get_func_name(e.func)
-            # funcType = self.env.typeof(funcName)
+            funcType = callType
+            argList = []
+            for i in e.args:
+                argType = self.infer_expr(i).reveal()
+                argList.append(argType)
+            resultType = TypeWrapper.new_type_var().reveal()
+            callType = TypeWrapper(Callable[argList, resultType])
 
-            # # built-in function call
-            # if funcName == 'list':
-            #     return self.infer_expr(ast.List(elts=e.args))
-            # elif funcName == 'set':
-            #     return self.infer_expr(ast.Set(elts=e.args))
-            # elif funcName == 'tuple':
-            #     return self.infer_expr(ast.Tuple(elts=e.args))
-            # elif funcName == 'dict':
-            #     return Dict  # TODO
+            self.unify(callType, funcType)
+            inferedType = TypeWrapper.reveal_type_var(resultType)
 
-            # # infer call type
-            # argList = list()
-            # for i in e.args:
-            #     argType = self.infer_expr(i)
-            #     argList.append(argType)
-            # resultType = TypeVar(self._get_tvid())
-
-            # # infer def type and result type
-            # self._unify_callable(Callable[argList, resultType], funcType)
-
-            # return resultType.__bound__
-            pass
+            return TypeWrapper(inferedType)
 
         elif isinstance(e, ast.FormattedValue):
             pass
@@ -381,12 +350,11 @@ class Inferer:
             try:
                 return self.env.typeof(e.id)
             except:
-                if e.id in dir(builtins):
-                    nameType = self.env.typeof('builtins').typeof(e.id)
-                    if isinstance(nameType, SymTable):
-                        return TypeWrapper(nameType.env, class_name=e.id)
-                    else:
-                        return nameType
+                nameType = seeker.get_module_symtable(e.id)
+                if isinstance(nameType, SymTable):
+                    return TypeWrapper(nameType.env, class_name=e.id)
+                else:
+                    return nameType
 
         elif isinstance(e, ast.List):
             list_class_def = self.env.typeof('builtins').typeof('list')
@@ -411,122 +379,148 @@ class Inferer:
 
     # helpers
     # -------
-    def _get_func_name(self, func):
-        # a.b.c()
-        if isinstance(func, ast.Attribute):
-            return f"{self._get_func_name(func.value)}.{func.attr}"
-        # a()
-        elif isinstance(func, ast.Name):
-            return func.id
-        # [].append
-        else:
-            return type(func).__name__.lower()
+    def unify(self, caller, callee):
+        if caller == callee:
+            return
 
-    # return original type of typing type. e.g. typing.Dict => dict
-    @staticmethod
-    def _get_original_type(t):
-        if isinstance(t, TypeVar):
-            t = t.__bound__
-        try:
-            return t.__origin__
-        except AttributeError:
-            return t
+        elif caller.is_type_var():
+            caller.union(callee.reveal())
 
-    def _get_tvid(self):
-        self.tvid += 1
-        return f"T{str(self.tvid)}"
+        elif callee.is_type_var():
+            callee.union(caller.reveal())
 
-    @staticmethod
-    def _unify_callable(a, b):
-        if not isinstance(a, Callable):
-            raise Exception(f"Expect unify type of Callable, but {type(a)} is received")
+        elif caller.is_function() and callee.is_function():
+            caller_args = TypeWrapper.get_callable_args(caller.reveal())
+            callee_args = TypeWrapper.get_callable_args(callee.reveal())
+            caller_body = TypeWrapper.get_callable_ret(caller.reveal())
+            callee_body = TypeWrapper.get_callable_ret(callee.reveal())
 
-        if not isinstance(b, Callable):
-            raise Exception(f"Expect unify type of Callable, but {type(b)} is received")
+            if len(caller_args) != len(callee_args):
+                raise Exception("Function args not matched")
 
-        a_args_type = list(a.__args__[:-1])
-        a_return_type = a.__args__[-1]
-        b_args_type = list(b.__args__[:-1])
-        b_return_type = b.__args__[-1]
-
-        if len(a_args_type) != len(b_args_type):
-            raise Exception("Function args not matched")
-
-        for i, (p, q) in enumerate(zip(a_args_type, b_args_type)):
-            a_args_type[i], b_args_type[i] = Inferer._unify(p, q)
-        a_return_type, b_return_type = Inferer._unify(a_return_type, b_return_type)
-
-        a.__args__ = (*a_args_type, a_return_type)
-        b.__args__ = (*b_args_type, b_return_type)
-
-    @staticmethod
-    def _unify(a, b):
-        # built-in type equivalent
-        if a == b:
-            return a, b
-
-        elif Inferer._coerce(a, b):
-            return b, b
-
-        elif Inferer._coerce(b, a):
-            return a, a
-
-        # a, b are both TypeVar, unify each bound type
-        elif isinstance(a, TypeVar) and isinstance(b, TypeVar):
-            ab = [a.__bound__] if a.__bound__ is not None else []
-            ab = [*ab, b.__bound__] if b.__bound__ is not None else [*ab]
-            if len(ab) > 0:
-                Inferer._bound_TypeVar(a, Union[tuple(ab)])
-                Inferer._bound_TypeVar(b, Union[tuple(ab)])
-            return a, b
-
-        # only a is TypeVar, set upper_bound of a to Union[b, a.__bound__]
-        elif isinstance(a, TypeVar):
-            ab = [b, a.__bound__] if a.__bound__ is not None else [b]
-            Inferer._bound_TypeVar(a, Union[tuple(ab)])
-            return a, b
-
-        # only b is TypeVar, set upper_bound of a to Union[a, b.__bound__]
-        elif isinstance(b, TypeVar):
-            ab = [a, b.__bound__] if b.__bound__ is not None else [a]
-            Inferer._bound_TypeVar(b, Union[tuple(ab)])
-            return a, b
-
-        # typing type equivalent
-        elif hasattr(a, '_name') and hasattr(b, '_name') and a._name == b._name:
-            return a, b
+            for i, (caller_t, callee_t) in enumerate(zip(caller_args, callee_args)):
+                self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
+            self.unify(TypeWrapper(caller_body), TypeWrapper(callee_body))
 
         else:
-            raise Exception(f"Function args: {a} and {b} are not matched")
+            raise Exception(f"Function args: {caller.reveal()} and {callee.reveal()} are not matched")
 
-    @staticmethod
-    def _bound_TypeVar(tv, t):
-        tv.__init__(tv.__name__, bound=t)
+    # def _get_func_name(self, func):
+    #     # a.b.c()
+    #     if isinstance(func, ast.Attribute):
+    #         return f"{self._get_func_name(func.value)}.{func.attr}"
+    #     # a()
+    #     elif isinstance(func, ast.Name):
+    #         return func.id
+    #     # [].append
+    #     else:
+    #         return type(func).__name__.lower()
 
-    @staticmethod
-    def _get_magic(op):
-        magics = {
-            "Add": "__add__",
-            "Sub": "__sub__",
-            "Mult": "__mul__",
-            "Div": "__div__",
-            "Mod": "__mod__",
-            "Or": "__or__",
-            "And": "__and__",
-        }
-        return magics[type(op).__name__]
+    # # return original type of typing type. e.g. typing.Dict => dict
+    # @staticmethod
+    # def _get_original_type(t):
+    #     if isinstance(t, TypeVar):
+    #         t = t.__bound__
+    #     try:
+    #         return t.__origin__
+    #     except AttributeError:
+    #         return t
 
-    # check p can coerce to q
-    @staticmethod
-    def _coerce(p, q):
-        if p is int and q is float:
-            return True
+    # def _get_tvid(self):
+    #     self.tvid += 1
+    #     return f"T{str(self.tvid)}"
 
-        elif p is int and q is complex:
-            return True
+    # @staticmethod
+    # def _unify_callable(a, b):
+    #     if not isinstance(a, Callable):
+    #         raise Exception(f"Expect unify type of Callable, but {type(a)} is received")
 
-        elif p is float and q is complex:
-            return True
+    #     if not isinstance(b, Callable):
+    #         raise Exception(f"Expect unify type of Callable, but {type(b)} is received")
 
-        else:
-            return False
+    #     a_args_type = list(a.__args__[:-1])
+    #     a_return_type = a.__args__[-1]
+    #     b_args_type = list(b.__args__[:-1])
+    #     b_return_type = b.__args__[-1]
+
+    #     if len(a_args_type) != len(b_args_type):
+    #         raise Exception("Function args not matched")
+
+    #     for i, (p, q) in enumerate(zip(a_args_type, b_args_type)):
+    #         a_args_type[i], b_args_type[i] = Inferer._unify(p, q)
+    #     a_return_type, b_return_type = Inferer._unify(a_return_type, b_return_type)
+
+    #     a.__args__ = (*a_args_type, a_return_type)
+    #     b.__args__ = (*b_args_type, b_return_type)
+
+    # @staticmethod
+    # def _unify(a, b):
+    #     # built-in type equivalent
+    #     if a == b:
+    #         return a, b
+
+    #     elif Inferer._coerce(a, b):
+    #         return b, b
+
+    #     elif Inferer._coerce(b, a):
+    #         return a, a
+
+    #     # a, b are both TypeVar, unify each bound type
+    #     elif isinstance(a, TypeVar) and isinstance(b, TypeVar):
+    #         ab = [a.__bound__] if a.__bound__ is not None else []
+    #         ab = [*ab, b.__bound__] if b.__bound__ is not None else [*ab]
+    #         if len(ab) > 0:
+    #             Inferer._bound_TypeVar(a, Union[tuple(ab)])
+    #             Inferer._bound_TypeVar(b, Union[tuple(ab)])
+    #         return a, b
+
+    #     # only a is TypeVar, set upper_bound of a to Union[b, a.__bound__]
+    #     elif isinstance(a, TypeVar):
+    #         ab = [b, a.__bound__] if a.__bound__ is not None else [b]
+    #         Inferer._bound_TypeVar(a, Union[tuple(ab)])
+    #         return a, b
+
+    #     # only b is TypeVar, set upper_bound of a to Union[a, b.__bound__]
+    #     elif isinstance(b, TypeVar):
+    #         ab = [a, b.__bound__] if b.__bound__ is not None else [a]
+    #         Inferer._bound_TypeVar(b, Union[tuple(ab)])
+    #         return a, b
+
+    #     # typing type equivalent
+    #     elif hasattr(a, '_name') and hasattr(b, '_name') and a._name == b._name:
+    #         return a, b
+
+    #     else:
+    #         raise Exception(f"Function args: {a} and {b} are not matched")
+
+    # @staticmethod
+    # def _bound_TypeVar(tv, t):
+    #     tv.__init__(tv.__name__, bound=t)
+
+    # @staticmethod
+    # def _get_magic(op):
+    #     magics = {
+    #         "Add": "__add__",
+    #         "Sub": "__sub__",
+    #         "Mult": "__mul__",
+    #         "Div": "__div__",
+    #         "Mod": "__mod__",
+    #         "Or": "__or__",
+    #         "And": "__and__",
+    #     }
+    #     return magics[type(op).__name__]
+
+    # # check p can coerce to q
+    # @staticmethod
+    # def _coerce(p, q):
+    #     if p is int and q is float:
+    #         return True
+
+    #     elif p is int and q is complex:
+    #         return True
+
+    #     elif p is float and q is complex:
+    #         return True
+
+    #     else:
+    #         return False

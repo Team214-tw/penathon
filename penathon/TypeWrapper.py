@@ -1,4 +1,5 @@
 import typing
+import uuid
 
 class TypeWrapper:
     def __init__(self, t, class_name=None):
@@ -41,6 +42,12 @@ class TypeWrapper:
     def is_class(self):
         return self.class_name is not None
 
+    def is_function(self):
+        return self.is_Callable(self.type)
+
+    def is_type_var(self):
+        return isinstance(self.type, typing.TypeVar)
+
     # type operation
     def typeof(self, name):
         if self.class_name is not None:
@@ -62,20 +69,93 @@ class TypeWrapper:
             self.bound_type_var(self.key_type, t[0])
             self.bound_type_var(self.value_type, t[1])
 
+    def union(self, t):
+        if not self.is_type_var():
+            raise Exception(f"{self.t} is not a type variable")
+        self.bound_type_var(self.type, t)
+
+    # reveal TypeWrapper to real type
+    def reveal(self):
+        if self.is_list():
+            return typing.List[self.list_type]
+
+        elif self.is_tuple():
+            return typing.Tuple[self.tuple_type]
+
+        elif self.is_set():
+            return typing.Set[self.set_type]
+
+        elif self.is_dict():
+            return typing.Dict[self.key_type, self.value_type]
+
+        elif self.class_name:
+            return self.class_name
+
+        return self.type
+
+    # helper function
+    @staticmethod
+    def is_Callable(t):  # caveat: can't use isinstance
+        return hasattr(t, '_name') and t._name == 'Callable'
+
+    @staticmethod
+    def is_List(t):  # caveat: can't use isinstance
+        return hasattr(t, '_name') and t._name == 'List'
+
+    @staticmethod
+    def is_Tuple(t):  # caveat: can't use isinstance
+        return hasattr(t, '_name') and t._name == 'Tuple'
+
+    @staticmethod
+    def is_Dict(t):  # caveat: can't use isinstance
+        return hasattr(t, '_name') and t._name == 'Dict'
+
+    @staticmethod
+    def is_Set(t):  # caveat: can't use isinstance
+        return hasattr(t, '_name') and t._name == 'Set'
+
+    @staticmethod
+    def is_Union(t):  # caveat: can't use isinstance
+        try:
+            return t.__origin__._name == 'Union'
+        except AttributeError:
+            return False
+
+    @staticmethod
+    def new_type_var():        
+        return TypeWrapper(typing.TypeVar(str(uuid.uuid4())))
+
+    @staticmethod
+    def get_list_type(t):
+        return t.__args__[0]
+
+    @staticmethod
+    def get_tuple_type(t):
+        return list(t.__args__)
+
+    @staticmethod
+    def get_dict_type_key(t):
+        return t.__args__[0]
+
+    @staticmethod
+    def get_dict_type_value(t):
+        return t.__args__[1]
+
+    @staticmethod
+    def get_set_type(t):
+        return t.__args__[0]
+
+    @staticmethod
+    def get_union_type(t):
+        return list(t.__args__)
+
     @staticmethod
     def get_callable_ret(t):
         return t.__args__[-1]
 
     @staticmethod
     def get_callable_args(t):
-        return t.__args__[:-1]
-
-    @staticmethod
-    def reveal_type_var(t):
-        if t.__bound__ is None:
-            return typing.Any
-        else:
-            return t.__bound__
+        return list(t.__args__[:-1])
 
     @staticmethod
     def bound_type_var(tv, t):
@@ -85,23 +165,41 @@ class TypeWrapper:
         else:
             tv.__bound__ = t
 
-    # get real type
-    def reveal(self):
-        if self.is_list():
-            return typing.List[self.reveal_type_var(self.list_type)]
+    @staticmethod
+    def reveal_type_var(t):
+        if isinstance(t, typing.TypeVar):
+            if t.__bound__ is None:
+                return typing.Any
+            else:
+                return TypeWrapper.reveal_type_var(t.__bound__)
 
-        elif self.is_tuple():
-            return typing.Tuple[self.reveal_type_var(self.tuple_type)]
+        elif TypeWrapper.is_Callable(t):
+            arg_list = TypeWrapper.get_callable_args(t)
+            body_type = TypeWrapper.get_callable_ret(t)
+            for idx, a in enumerate(arg_list):
+                arg_list[idx] = TypeWrapper.reveal_type_var(a)
+            return typing.Callable[arg_list, body_type]
 
-        elif self.is_set():
-            return typing.Set[self.reveal_type_var(self.set_type)]
+        elif TypeWrapper.is_List(t):
+            list_type = TypeWrapper.get_list_type(t)
+            return typing.List[TypeWrapper.reveal_type_var(list_type)]
 
-        elif self.is_dict():
-            key_type = self.reveal_type_var(self.key_type)
-            value_type = self.reveal_type_var(self.value_type)
-            return typing.Dict[key_type, value_type]
+        elif TypeWrapper.is_Tuple(t):
+            tupleType = [TypeWrapper.reveal_type_var(t) for t in TypeWrapper.get_tuple_type(t)]
+            return typing.Tuple[tuple(tupleType)]
 
-        elif self.class_name:
-            return self.class_name
+        elif TypeWrapper.is_Dict(t):
+            keyType = TypeWrapper.reveal_type_var(TypeWrapper.get_dict_type_key(t))
+            valueType = TypeWrapper.reveal_type_var(TypeWrapper.get_dict_type_value(t))
+            return typing.Dict[keyType, valueType]
 
-        return self.type
+        elif TypeWrapper.is_Set(t):
+            setType = TypeWrapper.reveal_type_var(TypeWrapper.get_set_type(t))
+            return typing.Set[setType]
+
+        elif TypeWrapper.is_Union(t):
+            unionType = [TypeWrapper.reveal_type_var(t) for t in TypeWrapper.get_union_type(t)]
+            return typing.Union[tuple(unionType)]
+
+        else:
+            return t

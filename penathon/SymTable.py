@@ -2,6 +2,7 @@ import ast
 import builtins
 import typing
 
+from .TypeWrapper import TypeWrapper
 
 class SymTable:
     def __init__(self, name, parent=None):
@@ -59,7 +60,7 @@ class SymTable:
                 print(f"{indent}    {k}:")
                 v.print(level + 1)
             else:
-                print(f"{indent}    {k}: {v.reveal()}")
+                print(f"{indent}    {k}: {TypeWrapper.reveal_type_var(v.reveal())}")
 
         print(f"{indent}-----{level}-----")
 
