@@ -63,6 +63,9 @@ class TypeWrapper:
     def is_type_var(self):
         return isinstance(self.type, typing.TypeVar)
 
+    def is_union(self):
+        return self.is_Union(self.type)
+
     def can_coerce(self, t): # can self.type coerce to t
         if self.reveal() is int and t.reveal() is float:
             return True

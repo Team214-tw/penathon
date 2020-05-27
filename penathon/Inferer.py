@@ -420,14 +420,20 @@ class Inferer:
             caller_body = TypeWrapper.get_callable_ret(caller.reveal())
             callee_body = TypeWrapper.get_callable_ret(callee.reveal())
 
-            if len(caller_args) != len(callee_args):
-                raise Exception("Function args not matched")
+            # if len(caller_args) != len(callee_args):
+            #     raise Exception("Function args not matched")
 
             for caller_t, callee_t in zip(caller_args, callee_args):
                 if caller_t is Ellipsis or callee_t is Ellipsis:
                     break
                 self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
             self.unify(TypeWrapper(caller_body), TypeWrapper(callee_body))
+
+        elif callee.is_union():
+            unionType = TypeWrapper.reveal_type_var(TypeWrapper.get_arg(callee))
+            callerType = TypeWrapper.reveal_type_var(caller.reveal())
+            if caller.reveal() in unionType:
+                return
 
         elif issubclass(caller.reveal_origin(), callee.reveal_origin()):
             if TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
