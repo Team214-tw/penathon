@@ -145,7 +145,7 @@ class Visitor(ast.NodeVisitor):
         # print(node, "Not Implement Visitor")
 
     def visit_Expr(self, node: ast.Expr):
-        print(node.lineno)
+        pass
 
     def visit_Module(self, node: ast.Module):
         for n in node.body:
@@ -258,9 +258,6 @@ class Visitor(ast.NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute):
         return node.attr
 
-    def visit_Expr(self, node):
-        pass
-
 
 class Typer:
     storage = {}
@@ -277,10 +274,10 @@ class Typer:
             return file_name, remain_len, found
         file_name1 = os.path.join(cur_path, splitted_name[0], "__init__.pyi")
         if os.path.isfile(file_name1):
-            return file_name1, len(splitted_name), True
+            return file_name1, len(splitted_name) - 1, True
         file_name2 = os.path.join(cur_path, splitted_name[0] + ".pyi")
         if os.path.isfile(file_name2):
-            return file_name2, len(splitted_name), True
+            return file_name2, len(splitted_name) - 1, True
         return "", -1, False
 
     @staticmethod
@@ -298,14 +295,18 @@ class Typer:
         return file_name, remain_len
 
     def _record_type(self, splitted_name):
-        file_name, remain_len = Typer._find_file(splitted_name[:-1])
+        file_name, remain_len = Typer._find_file(splitted_name)
         # print(file_name)
         with open(file_name) as f:
             parsed_ast = ast.parse(f.read())
         v = Visitor()
         v.visit(parsed_ast)
         cur = self.storage
-        for i in splitted_name[:-remain_len]:
+        if remain_len == 0:
+            tmp_splitted_name = splitted_name
+        else:
+            tmp_splitted_name = splitted_name[:-remain_len]
+        for i in tmp_splitted_name:
             if i not in cur:
                 cur[i] = {}
             cur = cur[i]
@@ -330,7 +331,7 @@ class Typer:
 
         if isinstance(t, dict):
             return ClassDefSymbol(name, t)
-        elif hasattr(t, '_name') and t._name == 'Callable':
+        elif hasattr(t, "_name") and t._name == "Callable":
             return FuncDefSymbol(name, t)
         else:
             return AssignSymbol(name, t)
@@ -338,6 +339,13 @@ class Typer:
 
 if __name__ == "__main__":
     x = Typer()
+    print(x.get_type("builtins"))
+    print(x.get_type("time"))
+    print(x.get_type("int"))
+    print(x.get_type("list"))
+    print(x.get_type("str"))
+    print(x.get_type("os.path"))
+    print(x.get_type("os"))
 
     print(x.get_type("time.time"))
     print(x.get_type("int.__sub__"))
