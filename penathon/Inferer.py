@@ -3,6 +3,7 @@ import copy
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 
 from .Typer import Typer
+from .TypeWrapper import TypeWrapper
 from .CodeGenerator import CodeGenerator
 from .SymTable import SymTable
 from .SymTableEntry import *
@@ -324,8 +325,7 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Constant):
-            # return type(e.value)
-            pass
+            return TypeWrapper(type(e.value))
 
         elif isinstance(e, ast.Attribute):
             pass
@@ -341,12 +341,13 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.List):
+
+            print(self.seeker.get_type('builtins.list'))
             # bodyType = []
             # for elt in e.elts:
             #     bodyType.append(self.infer_expr(elt))
             # bodyType = tuple(bodyType)
             # return List[Union[bodyType]] if len(bodyType) > 0 else List
-            pass
 
         elif isinstance(e, ast.Tuple):
             # bodyType = []
