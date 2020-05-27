@@ -87,9 +87,11 @@ class Inferer:
         elif isinstance(e, ast.Assign):
             valueType = self.infer_expr(e.value)
             for t in e.targets:
-                env, name = self.infer_expr(t)
-                env[name] = valueType
-                # self.env.add(, valueType)
+                if isinstance(t, ast.Subscript):
+                    continue
+                else:
+                    env, name = self.infer_expr(t)
+                    env[name] = valueType
 
         elif isinstance(e, ast.AugAssign):
             pass
