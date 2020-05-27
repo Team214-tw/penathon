@@ -176,8 +176,11 @@ class TypeWrapper:
         elif TypeWrapper.is_Callable(t):
             arg_list = TypeWrapper.get_callable_args(t)
             body_type = TypeWrapper.get_callable_ret(t)
-            for idx, a in enumerate(arg_list):
-                arg_list[idx] = TypeWrapper.reveal_type_var(a)
+            if len(arg_list) == 1 and arg_list[0] is Ellipsis:
+                arg_list = ...
+            else:
+                for idx, a in enumerate(arg_list):
+                    arg_list[idx] = TypeWrapper.reveal_type_var(a)
             return typing.Callable[arg_list, body_type]
 
         elif TypeWrapper.is_List(t):
