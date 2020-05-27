@@ -12,7 +12,17 @@ class CodeGenerator(ast.NodeTransformer):
 
     def gen(self, tree, symbol_table):
         self.symbol_table = symbol_table
+        self.insert_typing_node(tree)
         return self.visit(tree)
+
+    def insert_typing_node(self, tree):
+        importNode = ast.Import(
+            names=[ast.alias(
+                asname=None,
+                name="typing"
+            )]
+        )
+        tree.body.insert(0, importNode)
 
     def visit_Assign(self, node):
         body = []
