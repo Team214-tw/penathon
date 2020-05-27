@@ -367,7 +367,7 @@ class Seeker(Typer):
 
 if __name__ == "__main__":
     x = Seeker()
-    symtable = x.get_module_symtable("os.path")
+    symtable = x.get_builtins_obj("print")
     symtable.print()
 
     # print(x.get_type("os").symtable)

@@ -100,7 +100,17 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.For):
-            pass
+            # iter = self.infer_expr(e.iter)
+            env, target = self.infer_expr(e.target)
+            if target in env:
+                raise Exception(f"{target} already has type {env[target].reveal()}")
+            env[target] = TypeWrapper(Any)
+
+            for n in e.body:
+                self.infer_stmt(n)
+
+            for n in e.orelse:
+                self.infer_stmt(n)
 
         elif isinstance(e, ast.AsyncFor):
             pass
