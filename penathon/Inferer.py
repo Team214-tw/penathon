@@ -11,6 +11,7 @@ class Inferer:
     def __init__(self):
         self.env = SymTable('root')
         self.func_ret_type = []
+        self.cur_class = None
 
     def infer(self, tree):
         for i in tree.body:
@@ -27,13 +28,22 @@ class Inferer:
             func_ret_type_bak = self.func_ret_type
             self.func_ret_type = []
 
-            # create type variables for each argument
-            argList = list()
-            for i in e.args.args:
-                argName = i.arg
-                argTypeVar = TypeWrapper.new_type_var()
-                self.env.add(argName, argTypeVar)
-                argList.append(argTypeVar.reveal())
+            # check is infering class
+            if self.cur_class is not None:
+                self.env.add(e.args.args[0].arg, self.cur_class)
+                argList = []
+                for i in e.args.args[1:]:
+                    argName = i.arg
+                    argTypeVar = TypeWrapper.new_type_var()
+                    self.env.add(argName, argTypeVar)
+                    argList.append(argTypeVar.reveal())
+            else:
+                argList = []
+                for i in e.args.args:
+                    argName = i.arg
+                    argTypeVar = TypeWrapper.new_type_var()
+                    self.env.add(argName, argTypeVar)
+                    argList.append(argTypeVar.reveal())
 
             # infer body type
             for i in e.body:
@@ -43,10 +53,8 @@ class Inferer:
             bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) else type(None)
             inferredType = TypeWrapper(Callable[argList, bodyType])
 
-            # restore function return type
+            # restore context
             self.func_ret_type = func_ret_type_bak
-
-            # context switch back
             self.env = self.env.parent
             self.env.add(e.name, inferredType)
 
@@ -57,10 +65,15 @@ class Inferer:
             newSymTable = SymTable(e.name, self.env)
             self.env = newSymTable
 
+            cur_class_bak = self.cur_class
+            classType = TypeWrapper(self.env.env, e.name)
+            self.cur_class = classType
+
             for i in e.body:
                 self.infer_stmt(i)
 
-            classType = TypeWrapper(self.env.env, e.name)
+            # restore context
+            self.cur_class = cur_class_bak
             self.env = self.env.parent
             self.env.add(e.name, classType)
 
@@ -74,7 +87,9 @@ class Inferer:
         elif isinstance(e, ast.Assign):
             valueType = self.infer_expr(e.value)
             for t in e.targets:
-                self.env.add(t.id, valueType)
+                env, name = self.infer_expr(t)
+                env[name] = valueType
+                # self.env.add(, valueType)
 
         elif isinstance(e, ast.AugAssign):
             pass
@@ -278,23 +293,27 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Call):
-            callType = self.infer_expr(e.func)
+            callee = self.infer_expr(e.func)
 
-            if callType.is_class(): # TODO: list, tuple, dict, set arguments
-                return callType
+            if callee.is_class():
+                funcType = callee.typeof("__init__")
+            else:
+                funcType = callee
 
-            funcType = callType
             argList = []
             for i in e.args:
                 argType = self.infer_expr(i).reveal()
                 argList.append(argType)
-            resultType = TypeWrapper.new_type_var().reveal()
-            callType = TypeWrapper(Callable[argList, resultType])
+            caller_ret = TypeWrapper.new_type_var().reveal()
+            caller = TypeWrapper(Callable[argList, caller_ret])
 
-            self.unify(callType, funcType)
-            inferedType = TypeWrapper.reveal_type_var(resultType)
+            self.unify(caller, funcType)
 
-            return TypeWrapper(inferedType)
+            if callee.is_class():
+                return callee
+            else:
+                inferedType = TypeWrapper.reveal_type_var(caller_ret)
+                return TypeWrapper(inferedType)
 
         elif isinstance(e, ast.FormattedValue):
             pass
@@ -310,8 +329,17 @@ class Inferer:
             return constant_inst
 
         elif isinstance(e, ast.Attribute):
-            valueType = self.infer_expr(e.value)
-            return valueType.typeof(e.attr)
+            ctx = type(e.ctx).__name__
+            if ctx == "Store":
+                valueType = self.infer_expr(e.value)
+                if not valueType.is_class():
+                    raise Exception("Can not store variable to non class instance")
+                return valueType.type, e.attr
+            elif ctx == "Load":
+                valueType = self.infer_expr(e.value)
+                return valueType.typeof(e.attr)
+            else:
+                raise Exception("Not implemented attribute operation")
 
         elif isinstance(e, ast.Subscript):
             pass
@@ -320,9 +348,15 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Name):
-            if e.id in BASIC_TYPES:
-                return TypeWrapper(BASIC_TYPES[e.id])
-            return self.env.typeof(e.id)
+            ctx = type(e.ctx).__name__
+            if ctx == "Store":
+                return self.env.env, e.id
+            elif ctx == "Load":
+                if e.id in BASIC_TYPES:
+                    return TypeWrapper(BASIC_TYPES[e.id])
+                return self.env.typeof(e.id)
+            else:
+                raise Exception("Not implemented name operation")
 
         elif isinstance(e, ast.List):
             list_class_inst = self.env.typeof('list')
