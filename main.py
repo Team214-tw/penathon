@@ -18,7 +18,7 @@ def main():
     inferer = Inferer()
     # cg = CodeGenerator()
     symbol_table = inferer.infer(x)
-    print(symbol_table)
+    symbol_table.print()
     # tree_with_type = cg.gen(x, symbol_table)
     # print('-----')
     # print(astor.to_source(tree_with_type), end='')

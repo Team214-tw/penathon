@@ -8,6 +8,7 @@ class SymTable:
     def __init__(self, name, parent=None):
         self.seeker = Typer()
         self.parent = parent
+        self.name = name
         if name != None and parent != None:
             self.parent.childs[name] = self
         self.childs = {}
@@ -88,3 +89,18 @@ class SymTable:
                     pass
                 splitted_name[i] = ts
         return ".".join(splitted_name)
+
+    def print(self):
+        if self.parent:
+            print(f"Symbol Table: {self.name}")
+            print(f"Parent Table: {self.parent.name}")
+        else:
+            print(f"Symbol Table: {self.name}")
+
+        for k, v in self.env.items():
+            print(f"    {k}: {v.reveal()}")
+
+        print("-----")
+
+        for c in self.childs:
+            self.childs[c].print()

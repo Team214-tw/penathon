@@ -15,8 +15,7 @@ class Inferer:
 
     def infer(self, tree):
         for i in tree.body:
-            inferedType = self.infer_stmt(i)
-            print(i.lineno, inferedType)
+            self.infer_stmt(i)
 
         return self.env
 
