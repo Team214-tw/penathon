@@ -271,14 +271,15 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Dict):
-            # if len(e.keys) == 0:
-            #     keyType = Any
-            # else:
-            #     keyType = []
-            #     for i in e.keys:
-            #         keyType.append(self.infer_expr(i))
-            #     keyType = Union[tuple(keyType)]
+            dict_class_def = self.env.typeof('builtins').typeof('dict')
+            dict_class_inst = TypeWrapper(dict_class_def.env, class_name='dict')
 
+            for i in range(len(e.keys)):
+                key_type = self.infer_expr(e.keys[i]).reveal()
+                value_type = self.infer_expr(e.values[i]).reveal()
+                dict_class_inst.bound((key_type, value_type))
+
+            return dict_class_inst
             # if len(e.values) == 0:
             #     valueType = Any
             # else:
@@ -288,11 +289,15 @@ class Inferer:
             #     valueType = Union[tuple(valueType)]
 
             # return Dict[keyType, valueType]
-            pass
 
         elif isinstance(e, ast.Set):
-            # return Set
-            pass
+            set_class_def = self.env.typeof('builtins').typeof('set')
+            set_class_inst = TypeWrapper(set_class_def.env, class_name='set')
+
+            for elmt in e.elts:
+                set_class_inst.bound(self.infer_expr(elmt).reveal())
+
+            return set_class_inst
 
         elif isinstance(e, ast.ListComp):
             pass
@@ -320,6 +325,9 @@ class Inferer:
 
         elif isinstance(e, ast.Call):
             callType = self.infer_expr(e.func)
+
+            if callType.is_class(): # TODO: list, tuple, dict, set arguments
+                return copy.deepcopy(callType)
 
             # # get function type
             # funcName = self._get_func_name(e.func)
@@ -374,7 +382,11 @@ class Inferer:
                 return self.env.typeof(e.id)
             except:
                 if e.id in dir(builtins):
-                    return self.env.typeof('builtins').typeof(e.id)
+                    nameType = self.env.typeof('builtins').typeof(e.id)
+                    if isinstance(nameType, SymTable):
+                        return TypeWrapper(nameType.env, class_name=e.id)
+                    else:
+                        return nameType
 
         elif isinstance(e, ast.List):
             list_class_def = self.env.typeof('builtins').typeof('list')
