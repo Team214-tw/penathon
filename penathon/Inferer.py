@@ -3,23 +3,9 @@ import copy
 import builtins
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 
-from .TypeWrapper import TypeWrapper
+from .TypeWrapper import TypeWrapper, BASIC_TYPES
 from .SymTable import SymTable
 
-
-BASIC_TYPES = {
-    "int": int,
-    "str": str,
-    "float": float,
-    "None": type(None),
-    "bytes": bytes,
-    "object": object,
-    "bool": bool,
-    "type": type,
-    "slice": slice,
-    "bytearray": bytearray,
-    "complex": complex,
-}
 
 class Inferer:
     def __init__(self):
@@ -89,8 +75,6 @@ class Inferer:
             valueType = self.infer_expr(e.value)
             for t in e.targets:
                 self.env.add(t.id, valueType)
-            # self.env.add(e, valueType)
-            # return valueType
 
         elif isinstance(e, ast.AugAssign):
             pass
@@ -194,31 +178,49 @@ class Inferer:
 
     def infer_expr(self, e):
         if isinstance(e, ast.BoolOp):
-            pass
+            return TypeWrapper(bool)
 
         # elif isinstance(e, ast.NamedExpr):
         #     pass
 
         elif isinstance(e, ast.BinOp):
-            # leftType = self.infer_expr(e.left)
-            # rightType = self.infer_expr(e.right)
+            leftType = self.infer_expr(e.left)
+            rightType = self.infer_expr(e.right)
 
-            # if Inferer._coerce(leftType, rightType):
-            #     leftType = rightType
+            # backup for error restore used
+            leftOriType = leftType.type
+            leftOriClass = leftType.class_name
+            rightOriType = rightType.type
+            rightOriClass = rightType.class_name
 
-            # funcName = self._get_magic(e.op)
-            # try:
-            #     leftOriType = self._get_original_type(leftType).__name__.lower()
-            #     funcType = self.seeker.get_type(f"{leftOriType}.{funcName}").reveal()
-            # except KeyError:
-            #     raise Exception(f"{leftType} object has no method {funcName}")
+            # promote type if can coerce
+            if leftType.can_coerce(rightType):
+                leftType.type = rightType.type
+                leftType.class_name = rightType.class_name
+            elif rightType.can_coerce(leftType):
+                rightType.type = leftType.type
+                rightType.class_name = leftType.class_name
 
-            # argList = [rightType]
-            # resultType = TypeVar(self._get_tvid())
-            # self._unify_callable(Callable[argList, resultType], funcType)
+            def do(a, op_func, b):
+                argList = [b.reveal()]
+                resultType = TypeWrapper.new_type_var().reveal()
+                callType = TypeWrapper(Callable[argList, resultType])
+                funcType = a.typeof(op_func)
+                self.unify(callType, funcType)
+                inferedType = TypeWrapper.reveal_type_var(resultType)
+                return TypeWrapper(inferedType)
 
-            # return resultType.__bound__
-            pass
+            try: # left op
+                return do(leftType, self._get_magic(e.op, reverse=False), rightType)
+            except: # right op
+                try:
+                    return do(rightType, self._get_magic(e.op, reverse=True), leftType)
+                except:
+                    leftType.type = leftOriType
+                    leftType.class_name = leftOriClass
+                    rightType.type = rightOriType
+                    rightType.class_name = rightOriClass
+                    raise Exception(f"BinOp failed: {leftType.reveal()} {type(e.op).__name__} {rightType.reveal()}")
 
         elif isinstance(e, ast.UnaryOp):
             pass
@@ -318,7 +320,9 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Constant):
-            return TypeWrapper(type(e.value))
+            typeName = type(e.value).__name__
+            constant_inst = self.env.typeof(typeName)
+            return TypeWrapper(constant_inst.env, class_name=typeName)
 
         elif isinstance(e, ast.Attribute):
             valueType = self.infer_expr(e.value)
@@ -359,7 +363,7 @@ class Inferer:
     # helpers
     # -------
     def unify(self, caller, callee):
-        if caller == callee:
+        if caller.reveal() == callee.reveal():
             return
 
         elif caller.is_type_var():
@@ -383,6 +387,32 @@ class Inferer:
 
         else:
             raise Exception(f"Function args: {caller.reveal()} and {callee.reveal()} are not matched")
+
+    @staticmethod
+    def _get_magic(op, reverse=None):
+        if reverse:
+            magics = {
+                "Add": "__radd__",
+                "Sub": "__rsub__",
+                "Mult": "__rmul__",
+                "Div": "__rdiv__",
+                "Mod": "__rmod__",
+                "Or": "__ror__",
+                "And": "__rand__",
+            }
+            return magics[type(op).__name__]
+        else:
+            magics = {
+                "Add": "__add__",
+                "Sub": "__sub__",
+                "Mult": "__mul__",
+                "Div": "__div__",
+                "Mod": "__mod__",
+                "Or": "__or__",
+                "And": "__and__",
+            }
+            return magics[type(op).__name__]
+
 
     # def _get_func_name(self, func):
     #     # a.b.c()
@@ -475,31 +505,3 @@ class Inferer:
     # @staticmethod
     # def _bound_TypeVar(tv, t):
     #     tv.__init__(tv.__name__, bound=t)
-
-    # @staticmethod
-    # def _get_magic(op):
-    #     magics = {
-    #         "Add": "__add__",
-    #         "Sub": "__sub__",
-    #         "Mult": "__mul__",
-    #         "Div": "__div__",
-    #         "Mod": "__mod__",
-    #         "Or": "__or__",
-    #         "And": "__and__",
-    #     }
-    #     return magics[type(op).__name__]
-
-    # # check p can coerce to q
-    # @staticmethod
-    # def _coerce(p, q):
-    #     if p is int and q is float:
-    #         return True
-
-    #     elif p is int and q is complex:
-    #         return True
-
-    #     elif p is float and q is complex:
-    #         return True
-
-    #     else:
-    #         return False

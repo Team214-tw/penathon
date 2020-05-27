@@ -1,6 +1,21 @@
 import typing
 import uuid
 
+
+BASIC_TYPES = {
+    "int": int,
+    "str": str,
+    "float": float,
+    "None": type(None),
+    "bytes": bytes,
+    "object": object,
+    "bool": bool,
+    "type": type,
+    "slice": slice,
+    "bytearray": bytearray,
+    "complex": complex,
+}
+
 class TypeWrapper:
     def __init__(self, t, class_name=None):
         self.type = t
@@ -48,6 +63,16 @@ class TypeWrapper:
     def is_type_var(self):
         return isinstance(self.type, typing.TypeVar)
 
+    def can_coerce(self, t): # can self.type coerce to t
+        if self.reveal() is int and t.reveal() is float:
+            return True
+        elif self.reveal() is int and t.reveal() is complex:
+            return True
+        elif self.reveal() is float and t.reveal() is complex:
+            return True
+        else:
+            return False
+
     # type operation
     def typeof(self, name):
         if self.class_name is not None:
@@ -89,7 +114,10 @@ class TypeWrapper:
             return typing.Dict[self.key_type, self.value_type]
 
         elif self.class_name:
-            return type(self.class_name, (object,), {})
+            if self.class_name in BASIC_TYPES:
+                return BASIC_TYPES[self.class_name]
+            else:
+                return type(self.class_name, (object,), {})
 
         return self.type
 
