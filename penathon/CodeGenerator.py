@@ -17,16 +17,25 @@ class CodeGenerator(ast.NodeTransformer):
     def visit_Assign(self, node):
         body = []
         for t in node.targets:
-            anno = self.get_type_name(self.get_real_type(self.get_target_type(t)))
-            body.append(
-                ast.AnnAssign(
-                    target=t,
-                    value=node.value,
-                    annotation=anno,
-                    lineno=node.lineno,
-                    simple=1,
+            try:
+                anno = self.get_type_name(self.get_real_type(self.get_target_type(t)))
+                body.append(
+                    ast.AnnAssign(
+                        target=t,
+                        value=node.value,
+                        annotation=anno,
+                        lineno=node.lineno,
+                        simple=1,
+                    )
                 )
-            )
+            except:
+                body.append(
+                    ast.Assign(
+                        targets=[t],
+                        value=node.value,
+                        lineno=node.lineno,
+                    )
+                )
         return body
 
     def visit_FunctionDef(self, node):

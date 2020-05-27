@@ -363,7 +363,7 @@ class Seeker(Typer):
 
     def get_builtins_obj(self, target):
         builtins_symtable = self.get_module_symtable("builtins")
-        return builtins_symtable.typeof(target)
+        return builtins_symtable.get(target)
 
 
 if __name__ == "__main__":
