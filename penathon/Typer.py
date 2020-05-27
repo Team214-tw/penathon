@@ -265,53 +265,56 @@ class Typer:
     @staticmethod
     def _recursive_find_file(cur_path, splitted_name):
         if len(splitted_name) == 0:
-            return "", -1, False
+            return [], -1, False
         new_path = os.path.join(cur_path, splitted_name[0])
-        file_name, remain_len, found = Typer._recursive_find_file(
+        file_names, remain_len, found = Typer._recursive_find_file(
             new_path, splitted_name[1:]
         )
         if found:
-            return file_name, remain_len, found
+            return file_names, remain_len, found
         file_name1 = os.path.join(cur_path, splitted_name[0], "__init__.pyi")
         if os.path.isfile(file_name1):
-            return file_name1, len(splitted_name) - 1, True
+            file_names = []
+            for f in os.listdir(os.path.join(cur_path, splitted_name[0])):
+                file_names.append(os.path.join(cur_path, splitted_name[0], f))
+            return file_names, len(splitted_name) - 1, True
         file_name2 = os.path.join(cur_path, splitted_name[0] + ".pyi")
         if os.path.isfile(file_name2):
-            return file_name2, len(splitted_name) - 1, True
-        return "", -1, False
+            return [file_name2], len(splitted_name) - 1, True
+        return [], -1, False
 
     @staticmethod
     def _find_file(module_name):
         pkg_dir = os.path.dirname(os.path.abspath(__file__))
         dirs = ["3.7", "3.6", "3", "2and3", "2"]
         for d in dirs:
-            file_name, remain_len, found = Typer._recursive_find_file(
+            file_names, remain_len, found = Typer._recursive_find_file(
                 f"{pkg_dir}/typeshed/stdlib/{d}", module_name
             )
             if found:
                 break
         if not found:
             raise Exception(f"{module_name} not found in typeshed")
-        return file_name, remain_len
+        return file_names, remain_len
 
     def _record_type(self, splitted_name):
-        file_name, remain_len = Typer._find_file(splitted_name)
-        # print(file_name)
-        with open(file_name) as f:
-            parsed_ast = ast.parse(f.read())
-        v = Visitor()
-        v.visit(parsed_ast)
-        cur = self.storage
-        if remain_len == 0:
-            tmp_splitted_name = splitted_name
-        else:
-            tmp_splitted_name = splitted_name[:-remain_len]
-        for i in tmp_splitted_name:
-            if i not in cur:
-                cur[i] = {}
-            cur = cur[i]
-        for key, val in v.storage.items():
-            cur[key] = val
+        file_names, remain_len = Typer._find_file(splitted_name)
+        for fn in file_names:
+            with open(fn) as f:
+                parsed_ast = ast.parse(f.read())
+            v = Visitor()
+            v.visit(parsed_ast)
+            cur = self.storage
+            if remain_len == 0:
+                tmp_splitted_name = splitted_name
+            else:
+                tmp_splitted_name = splitted_name[:-remain_len]
+            for i in tmp_splitted_name:
+                if i not in cur:
+                    cur[i] = {}
+                cur = cur[i]
+            for key, val in v.storage.items():
+                cur[key] = val
 
     def _get_type(self, splitted_name):
         cur = self.storage
@@ -339,6 +342,8 @@ class Typer:
 
 if __name__ == "__main__":
     x = Typer()
+
+    print(x.get_type("os"))
     print(x.get_type("builtins"))
     print(x.get_type("time"))
     print(x.get_type("int"))
