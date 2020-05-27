@@ -178,7 +178,8 @@ class Inferer:
 
     def infer_expr(self, e):
         if isinstance(e, ast.BoolOp):
-            return TypeWrapper(bool)
+            bool_inst = self.env.typeof('bool')
+            return TypeWrapper(bool_inst.env, 'bool')
 
         # elif isinstance(e, ast.NamedExpr):
         #     pass
@@ -223,7 +224,8 @@ class Inferer:
                     raise Exception(f"BinOp failed: {leftType.reveal()} {type(e.op).__name__} {rightType.reveal()}")
 
         elif isinstance(e, ast.UnaryOp):
-            pass
+            # TODO: Invert | Not | UAdd | USub, check magic function
+            return self.infer_expr(e.operand)
 
         elif isinstance(e, ast.Lambda):
             # newSymTable = SymTable(None, self.env)
