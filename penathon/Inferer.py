@@ -306,7 +306,7 @@ class Inferer:
                     funcType = callee.typeof("__init__") # try to unify init
                     self.lazy_func_load(funcType)
                 except:
-                    return callee
+                    return copy.deepcopy(callee) # create instance
             else:
                 funcType = callee
 
@@ -320,7 +320,7 @@ class Inferer:
             self.unify(caller, funcType)
 
             if callee.is_class():
-                return callee
+                return copy.deepcopy(callee) # create instance
             else:
                 inferedType = TypeWrapper.reveal_type_var(caller_ret)
                 return TypeWrapper(inferedType)
@@ -485,6 +485,8 @@ class Inferer:
             callerType = TypeWrapper.reveal_type_var(caller.reveal())
             if caller.reveal() in unionType:
                 return
+            else:
+                raise Exception(f"Function args: {caller.reveal()} and {callee.reveal()} are not matched")
 
         elif issubclass(caller.reveal_origin(), callee.reveal_origin()):
             if TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
