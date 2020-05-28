@@ -9,6 +9,7 @@ import os
 from . import SymTable
 from .TypeWrapper import TypeWrapper
 
+from typing import Pattern as Pattern, Match as Match
 
 TYPE_DICT = {
     "Any": Any,
@@ -88,6 +89,8 @@ TYPE_DICT = {
     "complex": complex,
     "range": range,
     "IO": typing.IO,
+    "Pattern": Pattern,
+    "Match": Match,
 }
 
 TYPING_WITH_TWO_ARGS = [Dict, Callable, DefaultDict]
@@ -368,10 +371,10 @@ class Seeker(Typer):
 
 if __name__ == "__main__":
     x = Seeker()
-    symtable = x.get_builtins_obj("open")
-    print(symtable.reveal())
+    # symtable = x.get_builtins_obj("open")
+    # print(symtable.reveal())
 
-    # print(x.get_type("os").symtable)
+    print(x.get_type("re.compile"))
     # print(x.get_type("builtins"))
     # print(x.get_type("time"))
     # print(x.get_type("int"))
