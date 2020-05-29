@@ -393,53 +393,55 @@ class Inferer:
             raise Exception(f"{e.lineno}: Unsupported syntax")
 
     def lazy_func_load(self, func_type):
-        e = func_type.lazy_func_info['tree']
-        env = func_type.lazy_func_info['env']
-        cur_class = func_type.lazy_func_info['cur_class']
+        try:
+            e = func_type.lazy_func_info['tree']
+            env = func_type.lazy_func_info['env']
+            cur_class = func_type.lazy_func_info['cur_class']
 
-        # context save
-        env_bak = self.env
-        self.env = SymTable(e.name, env)
-        cur_class_bak = self.cur_class
-        self.cur_class = cur_class
-        func_ret_type_bak = self.func_ret_type
-        self.func_ret_type = []
+            # context save
+            env_bak = self.env
+            self.env = SymTable(e.name, env)
+            cur_class_bak = self.cur_class
+            self.cur_class = cur_class
+            func_ret_type_bak = self.func_ret_type
+            self.func_ret_type = []
 
-        # check is infering class
-        if self.cur_class is not None:
-            self.env.add(e.args.args[0].arg, self.cur_class)
-            argList = []
-            for i in e.args.args[1:]:
-                argName = i.arg
-                argTypeVar = TypeWrapper.new_type_var()
-                self.env.add(argName, argTypeVar)
-                argList.append(argTypeVar.reveal())
-        else:
-            argList = []
-            for i in e.args.args:
-                argName = i.arg
-                argTypeVar = TypeWrapper.new_type_var()
-                self.env.add(argName, argTypeVar)
-                argList.append(argTypeVar.reveal())
+            # check is infering class
+            if self.cur_class is not None:
+                self.env.add(e.args.args[0].arg, self.cur_class)
+                argList = []
+                for i in e.args.args[1:]:
+                    argName = i.arg
+                    argTypeVar = TypeWrapper.new_type_var()
+                    self.env.add(argName, argTypeVar)
+                    argList.append(argTypeVar.reveal())
+            else:
+                argList = []
+                for i in e.args.args:
+                    argName = i.arg
+                    argTypeVar = TypeWrapper.new_type_var()
+                    self.env.add(argName, argTypeVar)
+                    argList.append(argTypeVar.reveal())
 
-        # infer body type
-        for i in e.body:
-            self.infer_stmt(i)
+            # infer body type
+            for i in e.body:
+                self.infer_stmt(i)
 
-        # generate body type
-        if self.cur_class is not None and e.name == "__init__":
-            bodyType = type(None)
-        else:
-            bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) else type(None)
-        func_type.type = Callable[argList, bodyType]
-        func_type.lazy_func_info = None
+            # generate body type
+            if self.cur_class is not None and e.name == "__init__":
+                bodyType = type(None)
+            else:
+                bodyType = Union[tuple(self.func_ret_type)] if len(self.func_ret_type) else type(None)
+            func_type.type = Callable[argList, bodyType]
+            func_type.lazy_func_info = None
 
-        # restore context
-        self.func_ret_type = func_ret_type_bak
-        self.env = env_bak
-        self.cur_class = cur_class_bak
+            return func_type
+        finally:
+            # restore context
+            self.func_ret_type = func_ret_type_bak
+            self.env = env_bak
+            self.cur_class = cur_class_bak
 
-        return func_type
 
     # helpers
     # -------
