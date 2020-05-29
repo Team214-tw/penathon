@@ -212,7 +212,7 @@ class Inferer:
                 resultType = TypeWrapper.new_type_var().reveal()
                 callType = TypeWrapper(Callable[argList, resultType])
                 funcType = a.typeof(op_func)
-                self.unify(callType, funcType)
+                self.unify_function(callType, funcType)
 
             try: # left op
                 do(leftType, self._get_magic(e.op, reverse=False), rightType)
@@ -258,20 +258,19 @@ class Inferer:
 
         elif isinstance(e, ast.Dict):
             dict_class_inst = self.env.typeof('dict')
-
+            key_type = []
+            value_type = []
             for i in range(len(e.keys)):
-                key_type = self.infer_expr(e.keys[i]).reveal()
-                value_type = self.infer_expr(e.values[i]).reveal()
-                dict_class_inst.bound((key_type, value_type))
-
+                key_type.append(self.infer_expr(e.keys[i]).reveal())
+                value_type.append(self.infer_expr(e.values[i]).reveal())
+            dict_class_inst.bound((Union[tuple(key_type)], Union[tuple(value_type)]))
             return dict_class_inst
 
         elif isinstance(e, ast.Set):
             set_class_inst = self.env.typeof('set')
-
-            for elmt in e.elts:
-                set_class_inst.bound(self.infer_expr(elmt).reveal())
-
+            set_type = [self.infer_expr(elmt).reveal() for elmt in e.elts]
+            if len(set_type) > 0:
+                set_class_inst.bound(Union[tuple(set_type)])
             return set_class_inst
 
         elif isinstance(e, ast.ListComp):
@@ -306,7 +305,7 @@ class Inferer:
                     funcType = callee.typeof("__init__") # try to unify init
                     self.lazy_func_load(funcType)
                 except:
-                    return copy.deepcopy(callee) # create instance
+                    return callee # create instance
             else:
                 funcType = callee
 
@@ -317,10 +316,10 @@ class Inferer:
             caller_ret = TypeWrapper.new_type_var().reveal()
             caller = TypeWrapper(Callable[argList, caller_ret])
 
-            self.unify(caller, funcType)
+            self.unify_function(caller, funcType)
 
             if callee.is_class():
-                return copy.deepcopy(callee) # create instance
+                return callee # create instance
             else:
                 inferedType = TypeWrapper.reveal_type_var(caller_ret)
                 return TypeWrapper(inferedType)
@@ -378,18 +377,16 @@ class Inferer:
 
         elif isinstance(e, ast.List):
             list_class_inst = self.env.typeof('list')
-
-            for elmt in e.elts:
-                list_class_inst.bound(self.infer_expr(elmt).reveal())
-
+            list_type = [self.infer_expr(elmt).reveal() for elmt in e.elts]
+            if len(list_type) > 0:
+                list_class_inst.bound(Union[tuple(list_type)])
             return list_class_inst
 
         elif isinstance(e, ast.Tuple):
             tuple_class_inst = self.env.typeof('tuple')
-
-            for elmt in e.elts:
-                tuple_class_inst.bound(self.infer_expr(elmt).reveal())
-
+            tuple_type = [self.infer_expr(elmt).reveal() for elmt in e.elts]
+            if len(tuple_type) > 0:
+                tuple_class_inst.bound(Union[tuple(tuple_type)])
             return tuple_class_inst
 
         else:
@@ -446,55 +443,60 @@ class Inferer:
 
     # helpers
     # -------
-    def unify(self, caller, callee):
-        if caller.reveal() == callee.reveal():
-            return
+    def unify_function(self, caller: TypeWrapper, callee: TypeWrapper):
+        caller_args = TypeWrapper.get_callable_args(caller.reveal())
+        callee_args = TypeWrapper.get_callable_args(callee.reveal())
+        caller_body = TypeWrapper.get_callable_ret(caller.reveal())
+        callee_body = TypeWrapper.get_callable_ret(callee.reveal())
 
-        elif caller.is_type_var() and callee.is_type_var():
-            callerType = TypeWrapper.get_typevar_bound(caller.reveal())
-            calleeType = TypeWrapper.get_typevar_bound(callee.reveal())
-            unionType = tuple(filter(None, [callerType, calleeType]))
-            if len(unionType) == 0: return
-            unionType = Union[unionType]
-            caller.union(unionType)
-            callee.union(unionType)
+        for caller_t, callee_t in zip(caller_args, callee_args):
+            if caller_t is Ellipsis or callee_t is Ellipsis:
+                break
+            self.unify_arg(TypeWrapper(caller_t), TypeWrapper(callee_t))
+        self.unify_ret(TypeWrapper(caller_body), TypeWrapper(callee_body))
 
-        elif caller.is_type_var():
-            caller.union(callee.reveal())
-
-        elif callee.is_type_var():
-            callee.union(caller.reveal())
-
-        elif caller.is_function() and callee.is_function():
-            caller_args = TypeWrapper.get_callable_args(caller.reveal())
-            callee_args = TypeWrapper.get_callable_args(callee.reveal())
-            caller_body = TypeWrapper.get_callable_ret(caller.reveal())
-            callee_body = TypeWrapper.get_callable_ret(callee.reveal())
-
-            if len(caller_args) != len(callee_args):
-                raise Exception("Function args not matched")
-
-            for caller_t, callee_t in zip(caller_args, callee_args):
-                if caller_t is Ellipsis or callee_t is Ellipsis:
-                    break
-                self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
-            self.unify(TypeWrapper(caller_body), TypeWrapper(callee_body))
-
-        elif callee.is_union():
-            unionType = TypeWrapper.reveal_type_var(TypeWrapper.get_arg(callee))
-            callerType = TypeWrapper.reveal_type_var(caller.reveal())
-            if caller.reveal() in unionType:
-                return
-            else:
-                raise Exception(f"Function args: {caller.reveal()} and {callee.reveal()} are not matched")
-
+    def unify_arg(self, caller, callee):
+        if caller.is_type_var() and callee.is_type_var():
+            callee.bound(caller.reveal())
         elif issubclass(caller.reveal_origin(), callee.reveal_origin()):
             if TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
                 caller_args = TypeWrapper.get_arg(caller)
                 callee_args = TypeWrapper.get_arg(callee)
                 for caller_t, callee_t in zip(caller_args, callee_args):
-                    self.unify(TypeWrapper(caller_t), TypeWrapper(callee_t))
+                    if caller_t is Ellipsis or callee_t is Ellipsis:
+                        break
+                    self.unify_arg(TypeWrapper(caller_t), TypeWrapper(callee_t))
+        else:
+            self.unify(caller, callee)
 
+    def unify_ret(self, caller, callee):
+        if caller.is_type_var() and callee.is_type_var():
+            caller.bound(callee.reveal())
+        elif issubclass(caller.reveal_origin(), callee.reveal_origin()):
+            if TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
+                caller_args = TypeWrapper.get_arg(caller)
+                callee_args = TypeWrapper.get_arg(callee)
+                for caller_t, callee_t in zip(caller_args, callee_args):
+                    if caller_t is Ellipsis or callee_t is Ellipsis:
+                        break
+                    self.unify_ret(TypeWrapper(caller_t), TypeWrapper(callee_t))
+        else:
+            self.unify(caller, callee)
+
+    def unify(self, caller, callee):
+        if caller.is_type_var():
+            caller.bound(callee.reveal())
+        elif callee.is_type_var():
+            callee.bound(caller.reveal())
+        elif TypeWrapper.reveal_type_var(caller.reveal()) == TypeWrapper.reveal_type_var(callee.reveal()):
+            return
+        elif callee.is_union():
+            unionType = TypeWrapper.reveal_type_var(TypeWrapper.get_arg(callee))
+            callerType = TypeWrapper.reveal_type_var(caller.reveal())
+            if callerType in unionType:
+                return
+            else:
+                raise Exception(f"Function args: {caller.reveal()} and {callee.reveal()} are not matched")
         else:
             raise Exception(f"Function args: {caller.reveal()} and {callee.reveal()} are not matched")
 

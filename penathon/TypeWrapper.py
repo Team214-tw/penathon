@@ -99,10 +99,8 @@ class TypeWrapper:
             self.bound_type_var(self.key_type, t[0])
             self.bound_type_var(self.value_type, t[1])
 
-    def union(self, t):
-        if not self.is_type_var():
-            raise Exception(f"{self.t} is not a type variable")
-        self.bound_type_var(self.type, t)
+        else:
+            self.bound_type_var(self.type, t)
 
     # reveal TypeWrapper to real type
     def reveal(self):
@@ -172,7 +170,7 @@ class TypeWrapper:
         return list(t.reveal().__args__)
 
     @staticmethod
-    def new_type_var():        
+    def new_type_var():
         return TypeWrapper(typing.TypeVar(str(uuid.uuid4())))
 
     @staticmethod
@@ -213,17 +211,21 @@ class TypeWrapper:
 
     @staticmethod
     def bound_type_var(tv, t):
-        old = tv.__bound__
-        if old is not None:
-            tv.__bound__ = typing.Union[old, t]
+        if not isinstance(tv, typing.TypeVar):
+            raise Exception(f"{tv} is not a type variable")
+        if isinstance(tv.__bound__, typing.TypeVar):
+            TypeWrapper.bound_type_var(tv.__bound__, t)
         else:
-            tv.__bound__ = t
+            if tv.__bound__ is not None:
+                raise Exception(f"Bound {t} failed. Type Variable {tv} is already bound: {tv.__bound__}")
+            else:
+                tv.__bound__ = t
 
     @staticmethod
     def reveal_type_var(t):
         if isinstance(t, typing.TypeVar):
             if t.__bound__ is None:
-                return typing.Any
+                return t
             else:
                 return TypeWrapper.reveal_type_var(t.__bound__)
 
