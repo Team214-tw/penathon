@@ -355,7 +355,25 @@ class Inferer:
                 raise Exception("Not implemented attribute operation")
 
         elif isinstance(e, ast.Subscript):
-            pass
+            ctx = type(e.ctx).__name__
+            if ctx == "Store": # TODO: need unify
+                pass
+            elif ctx == "Load": # TODO: check index type
+                valueType = self.infer_expr(e.value)
+                if TypeWrapper.is_List(valueType.reveal()):
+                    args = TypeWrapper.get_arg(valueType)
+                    if isinstance(args[0], TypeVar): # reveal one level
+                        return TypeWrapper(args[0].__bound__)
+                    return TypeWrapper(args[0])
+                elif TypeWrapper.is_Dict(valueType.reveal()):
+                    args = TypeWrapper.get_arg(valueType)
+                    if isinstance(args[1], TypeVar): # reveal one level
+                        return TypeWrapper(args[1].__bound__)
+                    return TypeWrapper(args[1])
+                else:
+                    raise Exception("Not implemented load")
+            else:
+                raise Exception("Not implemented attribute operation")
 
         elif isinstance(e, ast.Starred):
             pass

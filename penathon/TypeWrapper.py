@@ -225,7 +225,7 @@ class TypeWrapper:
     def reveal_type_var(t):
         if isinstance(t, typing.TypeVar):
             if t.__bound__ is None:
-                return t
+                return typing.Any
             else:
                 return TypeWrapper.reveal_type_var(t.__bound__)
 
