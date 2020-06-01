@@ -326,8 +326,7 @@ class Inferer:
             if callee.is_class():
                 return callee # create instance
             else:
-                inferedType = TypeWrapper.reveal_type_var(caller_ret)
-                return TypeWrapper(inferedType)
+                return TypeWrapper(caller_ret)
 
         elif isinstance(e, ast.FormattedValue):
             pass
