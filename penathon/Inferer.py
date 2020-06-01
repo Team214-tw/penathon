@@ -274,17 +274,21 @@ class Inferer:
                 set_class_inst.bound(Union[tuple(set_type)])
             return set_class_inst
 
-        elif isinstance(e, ast.ListComp):
-            pass
+        elif isinstance(e, ast.ListComp): # TODO: generator
+            list_class_inst = self.env.typeof('list')
+            return list_class_inst
 
-        elif isinstance(e, ast.SetComp):
-            pass
+        elif isinstance(e, ast.SetComp): # TODO: generator
+            set_class_inst = self.env.typeof('set')
+            return set_class_inst
 
-        elif isinstance(e, ast.DictComp):
-            pass
+        elif isinstance(e, ast.DictComp): # TODO: generator
+            dict_class_inst = self.env.typeof('dict')
+            return dict_class_inst
 
-        elif isinstance(e, ast.GeneratorExp):
-            pass
+        elif isinstance(e, ast.GeneratorExp): # TODO: generator
+            tuple_class_inst = self.env.typeof('tuple')
+            return tuple_class_inst
 
         elif isinstance(e, ast.Await):
             pass
