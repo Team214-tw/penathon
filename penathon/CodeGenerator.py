@@ -20,7 +20,8 @@ class CodeGenerator(ast.NodeTransformer):
             names=[ast.alias(
                 asname=None,
                 name="typing"
-            )]
+            )],
+            lineno = 0,
         )
         tree.body.insert(0, importNode)
 
