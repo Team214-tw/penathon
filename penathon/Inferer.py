@@ -62,7 +62,8 @@ class Inferer:
                     continue
                 else:
                     env, name = self.infer_expr(t)
-                    env[name] = valueType
+                    if name not in env:
+                        env[name] = valueType
 
         elif isinstance(e, ast.AugAssign):
             pass
