@@ -194,6 +194,9 @@ class Inferer:
 
     def infer_expr(self, e):
         if isinstance(e, ast.BoolOp):
+            for v in e.values:
+                self.infer_expr(v) # ignore return
+
             bool_inst = self.env.typeof('bool')
             return bool_inst
 
@@ -310,6 +313,10 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Compare):
+            self.infer_expr(e.left) # ignore return
+            for c in e.comparators:
+                self.infer_expr(c) # ignore return
+
             bool_inst = self.env.typeof('bool')
             return bool_inst
 
