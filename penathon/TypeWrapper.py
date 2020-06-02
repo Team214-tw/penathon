@@ -79,7 +79,8 @@ class TypeWrapper:
             self.bound_type_var(self.list_type, t)
 
         elif self.is_tuple():
-            self.bound_type_var(self.tuple_type, t)
+            self.tuple_elmt = t
+            self.bound_type_var(self.tuple_type, typing.Union[t])
 
         elif self.is_set():
             self.bound_type_var(self.set_type, t)
@@ -97,7 +98,7 @@ class TypeWrapper:
             return typing.List[self.list_type]
 
         elif self.is_tuple():
-            return typing.Tuple[self.tuple_type, ...]
+            return typing.Tuple[self.tuple_elmt]
 
         elif self.is_set():
             return typing.Set[self.set_type]

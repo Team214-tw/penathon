@@ -423,7 +423,7 @@ class Inferer:
             tuple_class_inst = self.env.typeof('tuple')
             tuple_type = [self.infer_expr(elmt).reveal() for elmt in e.elts]
             if len(tuple_type) > 0:
-                tuple_class_inst.bound(Union[tuple(tuple_type)])
+                tuple_class_inst.bound(tuple(tuple_type))
             return tuple_class_inst
 
         else:
