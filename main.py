@@ -18,10 +18,10 @@ def main():
     inferer = Inferer()
     cg = CodeGenerator()
     symbol_table = inferer.infer(x)
-    # symbol_table.print()
+    symbol_table.print()
     tree_with_type = cg.gen(x, symbol_table)
     # print('-----')
-    print(astor.to_source(tree_with_type, add_line_information=True), end='')
+    print(astor.to_source(tree_with_type), end='')
 
 
 if __name__ == "__main__":

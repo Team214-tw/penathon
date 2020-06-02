@@ -5,10 +5,11 @@ from .Constant import BASIC_TYPES, BASIC_TYPES_LIST, TYPE_DICT
 
 
 class TypeWrapper:
-    def __init__(self, t, class_name=None, lazy_func_info=None):
+    def __init__(self, t, class_name=None, lazy_func_info=None, need_refresh=False):
         self.type = t
         self.class_name = class_name
         self.lazy_func_info = lazy_func_info
+        self.need_refresh = need_refresh
 
         if self.is_list(): self.list_init()
         elif self.is_tuple(): self.tuple_init()
@@ -119,6 +120,63 @@ class TypeWrapper:
             if r in BASIC_TYPES_LIST:
                 return r
             return type(r)
+
+    # refresh new type variable instance
+    def refresh(self):
+        self.tv_map = {}
+        if not isinstance(self.type, dict):
+            self.type = self.refresh_recursive(self.type)
+
+    def refresh_recursive(self, t):
+        if isinstance(t, typing.TypeVar):
+            try:
+                return self.tv_map[str(t)]
+            except KeyError:
+                self.tv_map[str(t)] = typing.TypeVar(str(uuid.uuid4()))
+                return self.tv_map[str(t)]
+
+        elif TypeWrapper.is_Callable(t):
+            arg_list = TypeWrapper.get_callable_args(t)
+            body_type = TypeWrapper.get_callable_ret(t)
+            if len(arg_list) == 1 and arg_list[0] is Ellipsis:
+                arg_list = ...
+            else:
+                for idx, a in enumerate(arg_list):
+                    arg_list[idx] = self.refresh_recursive(a)
+                body_type = self.refresh_recursive(body_type)
+            return typing.Callable[arg_list, body_type]
+
+        elif TypeWrapper.is_List(t):
+            list_type = TypeWrapper.get_list_type(t)
+            return typing.List[self.refresh_recursive(list_type)]
+
+        elif TypeWrapper.is_Tuple(t):
+            tupleType = [self.refresh_recursive(t) for t in TypeWrapper.get_tuple_type(t)]
+            return typing.Tuple[tuple(tupleType)]
+
+        elif TypeWrapper.is_Dict(t):
+            keyType = self.refresh_recursive(TypeWrapper.get_dict_type_key(t))
+            valueType = self.refresh_recursive(TypeWrapper.get_dict_type_value(t))
+            return typing.Dict[keyType, valueType]
+
+        elif TypeWrapper.is_Set(t):
+            setType = self.refresh_recursive(TypeWrapper.get_set_type(t))
+            return typing.Set[setType]
+
+        elif TypeWrapper.is_Union(t):
+            unionType = [self.refresh_recursive(t) for t in TypeWrapper.get_union_type(t)]
+            return typing.Union[tuple(unionType)]
+
+        elif hasattr(t, '__args__') and len(t.__args__) == 1:
+            try:
+                type_name = t._name
+                arg = self.refresh_recursive(t.__args__[0])
+                return TYPE_DICT[type_name][arg]
+            except:
+                return t
+
+        else:
+            return t
 
     # helper function
     @staticmethod

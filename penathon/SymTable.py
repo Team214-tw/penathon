@@ -39,7 +39,15 @@ class SymTable:
 
     def typeof(self, name):
         try:
-            return self.get(name)
+            nameType = self.get(name)
+            # refresh type variable for module which is already loaded in env
+            if isinstance(nameType, TypeWrapper) and nameType.need_refresh:
+                nameType.refresh()
+            elif isinstance(nameType, SymTable):
+                for k, v in nameType.env.items():
+                    if isinstance(v, TypeWrapper) and v.need_refresh:
+                        v.refresh()
+            return nameType
         except:
             try:
                 builtins_obj = seeker.get_builtins_obj(name)

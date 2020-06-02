@@ -271,7 +271,7 @@ class Seeker(Typer):
                 self._record_symtable(submodule_symtable, v, submodule_name)
                 symtable.add(submodule_name, submodule_symtable)
             else:
-                symtable.add(k, TypeWrapper(v))
+                symtable.add(k, TypeWrapper(v, need_refresh=True))
 
     def get_module_symtable(self, module_name):
         module_symtable = SymTable.SymTable(module_name)
