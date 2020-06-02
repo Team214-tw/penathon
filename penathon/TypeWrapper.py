@@ -1,21 +1,8 @@
 import typing
 import uuid
 
+from .Constant import BASIC_TYPES, BASIC_TYPES_LIST, TYPE_DICT
 
-BASIC_TYPES = {
-    "int": int,
-    "str": str,
-    "float": float,
-    "None": type(None),
-    "bytes": bytes,
-    "object": object,
-    "bool": bool,
-    "type": type,
-    "slice": slice,
-    "bytearray": bytearray,
-    "complex": complex,
-}
-BASIC_TYPES_LIST = [int, str, float, type(None), bytes, object, bool, type, slice, bytearray, complex]
 
 class TypeWrapper:
     def __init__(self, t, class_name=None, lazy_func_info=None):
@@ -260,6 +247,14 @@ class TypeWrapper:
         elif TypeWrapper.is_Union(t):
             unionType = [TypeWrapper.reveal_type_var(t) for t in TypeWrapper.get_union_type(t)]
             return typing.Union[tuple(unionType)]
+
+        elif hasattr(t, '__args__') and len(t.__args__) == 1:
+            try:
+                type_name = t._name
+                arg = TypeWrapper.reveal_type_var(t.__args__[0])
+                return TYPE_DICT[type_name][arg]
+            except:
+                return t
 
         else:
             return t

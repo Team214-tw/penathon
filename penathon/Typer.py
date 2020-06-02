@@ -1,6 +1,5 @@
 import ast
 from typing import *
-import typing
 import sys
 from collections import defaultdict
 import builtins
@@ -8,92 +7,8 @@ import os
 
 from . import SymTable
 from .TypeWrapper import TypeWrapper
+from .Constant import TYPE_DICT
 
-from typing import Pattern as Pattern, Match as Match
-
-TYPE_DICT = {
-    "Any": Any,
-    "Callable": Callable,
-    "ClassVar": ClassVar,
-    "Final": Final,
-    "ForwardRef": ForwardRef,
-    "Generic": Generic,
-    "Literal": Literal,
-    "Optional": Optional,
-    "Protocol": Protocol,
-    "Tuple": Tuple,
-    "Type": Type,
-    "TypeVar": TypeVar,
-    "Union": Union,
-    "AbstractSet": AbstractSet,
-    "ByteString": ByteString,
-    "Container": Container,
-    "ContextManager": ContextManager,
-    "Hashable": Hashable,
-    "ItemsView": ItemsView,
-    "Iterable": Iterable,
-    "Iterator": Iterator,
-    "KeysView": KeysView,
-    "Mapping": Mapping,
-    "MappingView": MappingView,
-    "MutableMapping": MutableMapping,
-    "MutableSequence": MutableSequence,
-    "MutableSet": MutableSet,
-    "Sequence": Sequence,
-    "Sized": Sized,
-    "ValuesView": ValuesView,
-    "Awaitable": Awaitable,
-    "AsyncIterator": AsyncIterator,
-    "AsyncIterable": AsyncIterable,
-    "Coroutine": Coroutine,
-    "Collection": Collection,
-    "AsyncGenerator": AsyncGenerator,
-    "AsyncContextManager": AsyncContextManager,
-    "Reversible": Reversible,
-    "SupportsAbs": SupportsAbs,
-    "SupportsBytes": SupportsBytes,
-    "SupportsComplex": SupportsComplex,
-    "SupportsFloat": SupportsFloat,
-    "SupportsIndex": SupportsIndex,
-    "SupportsInt": SupportsInt,
-    "SupportsRound": SupportsRound,
-    "ChainMap": ChainMap,
-    "Counter": Counter,
-    "Deque": Deque,
-    "Dict": Dict,
-    "DefaultDict": DefaultDict,
-    "List": List,
-    "OrderedDict": OrderedDict,
-    "Set": Set,
-    "FrozenSet": FrozenSet,
-    "NamedTuple": NamedTuple,
-    "TypedDict": TypedDict,
-    "Generator": Generator,
-    "AnyStr": AnyStr,
-    "NewType": NewType,
-    "NoReturn": NoReturn,
-    "Text": Text,
-    "int": int,
-    "str": str,
-    "float": float,
-    "None": None,
-    "bytes": bytes,
-    "object": object,
-    "bool": bool,
-    "type": type,
-    "BaseException": BaseException,
-    "slice": slice,
-    "bytearray": bytearray,
-    "property": property,
-    "memoryview": memoryview,
-    "complex": complex,
-    "range": range,
-    "IO": typing.IO,
-    "Pattern": Pattern,
-    "Match": Match,
-}
-
-TYPING_WITH_TWO_ARGS = [Dict, Callable, DefaultDict]
 
 symbol_table = {}
 

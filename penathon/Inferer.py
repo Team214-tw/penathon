@@ -3,7 +3,8 @@ import copy
 import builtins
 from typing import Dict, List, Set, Tuple, Union, Callable, TypeVar, Any
 
-from .TypeWrapper import TypeWrapper, BASIC_TYPES
+from .TypeWrapper import TypeWrapper
+from .Constant import BASIC_TYPES
 from .SymTable import SymTable
 
 
@@ -72,7 +73,6 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.For):
-            # iter = self.infer_expr(e.iter)
             env, target = self.infer_expr(e.target)
             if target in env:
                 raise Exception(f"{target} already has type {env[target].reveal()}")
