@@ -76,7 +76,16 @@ class Inferer:
             env, target = self.infer_expr(e.target)
             if target in env:
                 raise Exception(f"{target} already has type {env[target].reveal()}")
-            env[target] = TypeWrapper(Any)
+
+            try:
+                iter = self.infer_expr(e.iter).typeof("__iter__").reveal()
+                if not TypeWrapper.is_Callable(iter):
+                    raise Exception("__iter__ is not callable")
+                iter_type = TypeWrapper.get_callable_ret(iter) # typing.Iterator[T]
+                item_type = iter_type.__args__[0]
+                env[target] = TypeWrapper(item_type)
+            except:            
+                env[target] = TypeWrapper(Any)
 
             for n in e.body:
                 self.infer_stmt(n)
