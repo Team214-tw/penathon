@@ -16,10 +16,11 @@ class Inferer:
 
     def infer(self, tree):
         for i in tree.body:
-            try:
-                self.infer_stmt(i)
-            except:
-                continue
+            self.infer_stmt(i)
+            # try:
+                # self.infer_stmt(i)
+            # except:
+                # continue
         return self.env
 
     def infer_stmt(self, e):
@@ -51,7 +52,7 @@ class Inferer:
 
         elif isinstance(e, ast.Return):
             valueType = self.infer_expr(e.value)
-            self.func_ret_type.append(valueType.reveal())
+            self.func_ret_type.append(TypeWrapper.reveal_type_var(valueType.reveal()))
 
         elif isinstance(e, ast.Delete):
             pass
@@ -82,7 +83,7 @@ class Inferer:
                 if not TypeWrapper.is_Callable(iter):
                     raise Exception("__iter__ is not callable")
                 iter_type = TypeWrapper.get_callable_ret(iter) # typing.Iterator[T]
-                item_type = iter_type.__args__[0]
+                item_type = TypeWrapper.get_arg(iter_type)[0]
                 env[target] = TypeWrapper(item_type)
             except:            
                 env[target] = TypeWrapper(Any)
@@ -373,16 +374,20 @@ class Inferer:
                 pass
             elif ctx == "Load": # TODO: check index type
                 valueType = self.infer_expr(e.value)
-                if TypeWrapper.is_List(valueType.reveal()):
-                    args = TypeWrapper.get_arg(valueType)
-                    if isinstance(args[0], TypeVar): # reveal one level
-                        return TypeWrapper(args[0].__bound__)
-                    return TypeWrapper(args[0])
-                elif TypeWrapper.is_Dict(valueType.reveal()):
-                    args = TypeWrapper.get_arg(valueType)
-                    if isinstance(args[1], TypeVar): # reveal one level
-                        return TypeWrapper(args[1].__bound__)
-                    return TypeWrapper(args[1])
+                valueRealType = TypeWrapper.reveal_type_var(valueType.reveal())
+
+                if TypeWrapper.has_arg(valueRealType):
+                    itemType = TypeWrapper.get_arg(valueRealType)
+                    if len(itemType) == 1:
+                        typeName = itemType[0].__name__
+                        constant_inst = self.env.typeof(typeName)
+                        return constant_inst
+                    elif len(itemType) == 2:
+                        typeName = itemType[1].__name__
+                        constant_inst = self.env.typeof(typeName)
+                        return constant_inst
+                    else:
+                        raise Exception("Not implemented load")
                 else:
                     raise Exception("Not implemented load")
             else:
@@ -495,9 +500,9 @@ class Inferer:
         if caller.is_type_var() and callee.is_type_var():
             callee.bound(caller.reveal())
         elif issubclass(caller.reveal_origin(), callee.reveal_origin()):
-            if TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
-                caller_args = TypeWrapper.get_arg(caller)
-                callee_args = TypeWrapper.get_arg(callee)
+            if TypeWrapper.has_arg(caller.reveal()) and TypeWrapper.has_arg(callee.reveal()):
+                caller_args = TypeWrapper.get_arg(caller.reveal())
+                callee_args = TypeWrapper.get_arg(callee.reveal())
                 for caller_t, callee_t in zip(caller_args, callee_args):
                     if caller_t is Ellipsis or callee_t is Ellipsis:
                         break
@@ -509,9 +514,9 @@ class Inferer:
         if caller.is_type_var() and callee.is_type_var():
             caller.bound(callee.reveal())
         elif issubclass(caller.reveal_origin(), callee.reveal_origin()):
-            if TypeWrapper.has_arg(caller) and TypeWrapper.has_arg(callee):
-                caller_args = TypeWrapper.get_arg(caller)
-                callee_args = TypeWrapper.get_arg(callee)
+            if TypeWrapper.has_arg(caller.reveal()) and TypeWrapper.has_arg(callee.reveal()):
+                caller_args = TypeWrapper.get_arg(caller.reveal())
+                callee_args = TypeWrapper.get_arg(callee.reveal())
                 for caller_t, callee_t in zip(caller_args, callee_args):
                     if caller_t is Ellipsis or callee_t is Ellipsis:
                         break
@@ -527,7 +532,7 @@ class Inferer:
         elif TypeWrapper.reveal_type_var(caller.reveal()) == TypeWrapper.reveal_type_var(callee.reveal()):
             return
         elif callee.is_union():
-            unionType = TypeWrapper.reveal_type_var(TypeWrapper.get_arg(callee))
+            unionType = TypeWrapper.reveal_type_var(TypeWrapper.get_arg(callee.reveal()))
             callerType = TypeWrapper.reveal_type_var(caller.reveal())
             if callerType in unionType:
                 return

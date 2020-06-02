@@ -3,6 +3,7 @@ import uuid
 
 from .Constant import BASIC_TYPES, BASIC_TYPES_LIST, TYPE_DICT
 
+CLASS_MAP = {}
 
 class TypeWrapper:
     def __init__(self, t, class_name=None, lazy_func_info=None, need_refresh=False):
@@ -108,7 +109,11 @@ class TypeWrapper:
             if self.class_name in BASIC_TYPES:
                 return BASIC_TYPES[self.class_name]
             else:
-                return type(self.class_name, (object,), {})
+                try:
+                    return CLASS_MAP[self.class_name]
+                except KeyError:
+                    CLASS_MAP[self.class_name] = type(self.class_name, (object,), {})
+                    return CLASS_MAP[self.class_name]
 
         return self.type
 
@@ -208,11 +213,11 @@ class TypeWrapper:
 
     @staticmethod
     def has_arg(t):
-        return hasattr(t.reveal(), '__args__') and len(t.reveal().__args__) != 0
+        return hasattr(t, '__args__') and len(t.__args__) != 0
 
     @staticmethod
     def get_arg(t):
-        return list(t.reveal().__args__)
+        return list(t.__args__)
 
     @staticmethod
     def new_type_var():

@@ -103,13 +103,13 @@ class CodeGenerator(ast.NodeTransformer):
 
     def get_type_name(self, t):
         # built-in type
-        if hasattr(t, "__name__"):
+        if t is type(None):
+            return ast.Name('None')
+        elif hasattr(t, "__name__"):
             return ast.Name(t.__name__)
         # typing type
         elif hasattr(t, "_name"):
             return ast.Name(str(t))
-        elif t is type(None):
-            return ast.Name('NoneType')
         # class
         elif isinstance(t, object):
             return ast.Name(t.__name__)
