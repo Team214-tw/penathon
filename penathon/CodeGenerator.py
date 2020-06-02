@@ -29,7 +29,11 @@ class CodeGenerator(ast.NodeTransformer):
         body = []
         for t in node.targets:
             try:
-                anno = self.get_type_name(self.get_real_type(self.get_target_type(t)))
+                target_type = self.get_target_type(t)
+                if hasattr(target_type, "is_gen"):
+                    raise Exception("Already generate type")
+                anno = self.get_type_name(self.get_real_type(target_type))
+                target_type.is_gen = True
                 body.append(
                     ast.AnnAssign(
                         target=t,
@@ -62,19 +66,16 @@ class CodeGenerator(ast.NodeTransformer):
             node.args.args[i].annotation = self.get_type_name(arg)
         node.returns = self.get_type_name(body_type)
 
-        if (isinstance(node, ast.FunctionDef)):
-            self.symbol_table = self.symbol_table.childs[node.name]
+        self.symbol_table = self.symbol_table.childs[node.name]
 
         ast.NodeTransformer.generic_visit(self, node)
 
-        if (isinstance(node, ast.FunctionDef)):
-            self.symbol_table = self.symbol_table.parent
+        self.symbol_table = self.symbol_table.parent
 
         return node
 
     def visit_ClassDef(self, node):
-        if (isinstance(node, ast.ClassDef)):
-            self.symbol_table = self.symbol_table.childs[node.name]
+        self.symbol_table = self.symbol_table.childs[node.name]
 
         cur_class_bak = self.cur_class
         self.cur_class = node.name
@@ -83,20 +84,19 @@ class CodeGenerator(ast.NodeTransformer):
 
         self.cur_class = cur_class_bak
 
-        if (isinstance(node, ast.ClassDef)):
-            self.symbol_table = self.symbol_table.parent
+        self.symbol_table = self.symbol_table.parent
 
         return node
 
     def get_target_type(self, t):
         if isinstance(t, ast.Attribute):
-            return self.get_target_type(t.value).env.pop(t.attr)
+            return self.get_target_type(t.value).typeof(t.attr)
 
         elif isinstance(t, ast.Name):
             return self.search(t.id)
 
     def search(self, name):
-        return self.symbol_table.env.pop(name)
+        return self.symbol_table.typeof(name)
 
     def get_real_type(self, wrapped_type):
         return TypeWrapper.reveal_type_var(wrapped_type.reveal())

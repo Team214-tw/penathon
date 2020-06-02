@@ -264,6 +264,8 @@ class TypeWrapper:
         if not isinstance(tv, typing.TypeVar):
             raise Exception(f"{tv} is not a type variable")
         if isinstance(tv.__bound__, typing.TypeVar):
+            if t is tv.__bound__: # already bound
+                return
             TypeWrapper.bound_type_var(tv.__bound__, t)
         else:
             if tv.__bound__ is not None and tv.__bound__ != t:
