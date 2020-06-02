@@ -431,19 +431,21 @@ class Inferer:
             # check is infering class
             if self.cur_class is not None:
                 self.env.add(e.args.args[0].arg, self.cur_class)
-                argList = []
-                for i in e.args.args[1:]:
-                    argName = i.arg
-                    argTypeVar = TypeWrapper.new_type_var()
-                    self.env.add(argName, argTypeVar)
-                    argList.append(argTypeVar.reveal())
+                args = e.args.args[1:]
             else:
-                argList = []
-                for i in e.args.args:
-                    argName = i.arg
-                    argTypeVar = TypeWrapper.new_type_var()
-                    self.env.add(argName, argTypeVar)
-                    argList.append(argTypeVar.reveal())
+                args = e.args.args
+
+            # infer args type
+            argList = []
+            default_start = len(args) - len(e.args.defaults)
+            for i, arg in enumerate(args):
+                argName = arg.arg
+                if i >= default_start:
+                    argType = self.infer_expr(e.args.defaults[i - default_start])
+                else:
+                    argType = TypeWrapper.new_type_var()
+                self.env.add(argName, argType)
+                argList.append(argType.reveal())
 
             # infer body type
             for i in e.body:
