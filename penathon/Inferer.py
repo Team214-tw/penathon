@@ -300,7 +300,8 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Compare):
-            pass
+            bool_inst = self.env.typeof('bool')
+            return bool_inst
 
         elif isinstance(e, ast.Call):
             callee = self.infer_expr(e.func)
