@@ -97,7 +97,7 @@ class TypeWrapper:
             return typing.List[self.list_type]
 
         elif self.is_tuple():
-            return typing.Tuple[self.tuple_type]
+            return typing.Tuple[self.tuple_type, ...]
 
         elif self.is_set():
             return typing.Set[self.set_type]

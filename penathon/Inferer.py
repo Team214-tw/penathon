@@ -7,6 +7,7 @@ from .TypeWrapper import TypeWrapper
 from .Constant import BASIC_TYPES
 from .SymTable import SymTable
 
+DEBUG = False
 
 class Inferer:
     def __init__(self):
@@ -15,13 +16,19 @@ class Inferer:
         self.cur_class = None
 
     def infer(self, tree):
-        for i in tree.body:
-            self.infer_stmt(i)
-            # try:
-                # self.infer_stmt(i)
-            # except:
-                # continue
+        self.infer_body(tree)
         return self.env
+
+    def infer_body(self, e):
+        for i in e.body:
+            if DEBUG:
+                self.infer_stmt(i)
+            else:
+                try:
+                    self.infer_stmt(i)
+                except:
+                    continue
+
 
     def infer_stmt(self, e):
         if isinstance(e, ast.FunctionDef):
@@ -42,8 +49,7 @@ class Inferer:
             classType = TypeWrapper(self.env.env, e.name)
             self.cur_class = classType
 
-            for i in e.body:
-                self.infer_stmt(i)
+            self.infer_body(e)
 
             # restore context
             self.cur_class = cur_class_bak
@@ -88,8 +94,7 @@ class Inferer:
             except:            
                 env[target] = TypeWrapper(Any)
 
-            for n in e.body:
-                self.infer_stmt(n)
+            self.infer_body(e)
 
             for n in e.orelse:
                 self.infer_stmt(n)
@@ -100,8 +105,7 @@ class Inferer:
         elif isinstance(e, ast.While):
             self.infer_expr(e.test)
 
-            for i in e.body:
-                self.infer_stmt(i)
+            self.infer_body(e)
 
             for i in e.orelse:
                 self.infer_stmt(i)
@@ -109,8 +113,7 @@ class Inferer:
         elif isinstance(e, ast.If):
             self.infer_expr(e.test)
 
-            for i in e.body:
-                self.infer_stmt(i)
+            self.infer_body(e)
 
             for i in e.orelse:
                 self.infer_stmt(i)
@@ -122,8 +125,7 @@ class Inferer:
                     env, name = self.infer_expr(i.optional_vars)
                     env[name] = contextType
 
-            for i in e.body:
-                self.infer_stmt(i)
+            self.infer_body(e)
 
         elif isinstance(e, ast.AsyncWith):
             pass
@@ -132,12 +134,10 @@ class Inferer:
             pass
 
         elif isinstance(e, ast.Try):
-            for i in e.body:
-                self.infer_stmt(i)
+            self.infer_body(e)
 
             for i in e.handlers:
-                for j in i.body:
-                    self.infer_stmt(j)
+                self.infer_body(i)
 
             for i in e.finalbody:
                 self.infer_stmt(i)
@@ -378,11 +378,11 @@ class Inferer:
 
                 if TypeWrapper.has_arg(valueRealType):
                     itemType = TypeWrapper.get_arg(valueRealType)
-                    if len(itemType) == 1:
+                    if TypeWrapper.is_List(valueRealType) or TypeWrapper.is_Tuple(valueRealType) or TypeWrapper.is_Set(valueRealType):
                         typeName = itemType[0].__name__
                         constant_inst = self.env.typeof(typeName)
                         return constant_inst
-                    elif len(itemType) == 2:
+                    elif TypeWrapper.is_Dict(valueRealType):
                         typeName = itemType[1].__name__
                         constant_inst = self.env.typeof(typeName)
                         return constant_inst
@@ -463,8 +463,7 @@ class Inferer:
                 argList.append(argType.reveal())
 
             # infer body type
-            for i in e.body:
-                self.infer_stmt(i)
+            self.infer_body(e)
 
             # generate body type
             if self.cur_class is not None and e.name == "__init__":

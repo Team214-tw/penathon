@@ -90,13 +90,13 @@ class CodeGenerator(ast.NodeTransformer):
 
     def get_target_type(self, t):
         if isinstance(t, ast.Attribute):
-            return self.get_target_type(t.value).typeof(t.attr)
+            return self.get_target_type(t.value).env.pop(t.attr)
 
         elif isinstance(t, ast.Name):
             return self.search(t.id)
 
     def search(self, name):
-        return self.symbol_table.typeof(name)
+        return self.symbol_table.env.pop(name)
 
     def get_real_type(self, wrapped_type):
         return TypeWrapper.reveal_type_var(wrapped_type.reveal())
