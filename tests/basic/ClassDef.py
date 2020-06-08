@@ -6,12 +6,14 @@ class foo:
 
 class bar:
     def __init__(self):
-        pass
+        self.c = 1
 
     def num(self):
-        return 3
+        return self.c
 
     def inc(self, a):
         return 1
 
 a = foo()
+b = bar()
+c = b.num()

@@ -1,84 +1,96 @@
 import ast
+import builtins
 import typing
-from .Typer import Typer
-from .SymTableEntry import *
-from .Helper import Helper
 
+from . import Typer
+from .TypeWrapper import TypeWrapper
+
+seeker = Typer.Seeker()
 
 class SymTable:
     def __init__(self, name, parent=None):
-        self.seeker = Typer()
         self.parent = parent
-        if name != None and parent != None:
+        if self.parent:
             self.parent.childs[name] = self
-        self.childs = {}
+        self.name = name
         self.env = {}
+        self.childs = {}
 
-    def add(self, node, inferedType=None):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                varName = target.id
-                varSymbol = self.env.get(varName)
+    def add(self, name, t):
+        self.env[name] = t
 
-                if isinstance(varSymbol, AssignSymbol) and isinstance(varSymbol.reveal(), typing.TypeVar):
-                    tv = varSymbol.valueType
-                    tv.__init__(tv.__name__, bound=inferedType)
-                else:
-                    self.write(varName, AssignSymbol(varName, inferedType))
-
-        elif isinstance(node, ast.Import):
-            for i in node.names:
-                asname = i.asname or i.name
-                self.write(asname, AliasSymbol(asname, i.name))
-
-        elif isinstance(node, ast.ImportFrom):
-            for i in node.names:
-                asname = i.asname or i.name
-                func_name = f"{node.module}.{i.name}"
-                try:
-                    func_type = self.seeker.get_type(func_name)
-                    self.write(asname, Helper.type_to_symbol(func_name, func_type))
-                except KeyError:
-                    raise Exception(f"Type not found: {func_name}")
-
-        elif isinstance(node, ast.FunctionDef):
-            self.write(node.name, FuncDefSymbol(node.name, inferedType))
+    def add_module(self, module_name, as_name=None, target=None):
+        module_symtable = seeker.get_module_symtable(module_name)
+        if target is not None: # load target only
+            if as_name is None:
+                self.env[target] = module_symtable.typeof(target)
+            else:
+                self.env[as_name] = module_symtable.typeof(target)
+        elif as_name is None: # load entire module
+            module_name_splitted = module_name.split('.')
+            cur = self
+            for i in module_name_splitted[:-1]:
+                if i not in cur.env:
+                    cur.env[i] = SymTable(i, cur)
+                cur = cur.env[i]
+            cur.env[module_name_splitted[-1]] = module_symtable
+        else:
+            self.env[as_name] = module_symtable
 
     def typeof(self, name):
-        symbol = self.get(name)
-        if symbol:
-            return symbol.reveal()
-        else:
+        try:
+            nameType = self.get(name)
+            # refresh type variable for module which is already loaded in env
+            if isinstance(nameType, TypeWrapper) and nameType.need_refresh:
+                nameType.refresh()
+            elif isinstance(nameType, SymTable):
+                for k, v in nameType.env.items():
+                    if isinstance(v, TypeWrapper) and v.need_refresh:
+                        v.refresh()
+            return nameType
+        except:
             try:
-                func_name = self._original_func_name(name)
-                return self.seeker.get_type(func_name)
-            except KeyError:
-                raise Exception(f"Infer failed: {name}")
+                builtins_obj = seeker.get_builtins_obj(name)
+                if isinstance(builtins_obj, SymTable):
+                    return TypeWrapper(builtins_obj.env, class_name=name)
+                else:
+                    return builtins_obj
+            except:
+                raise Exception(f"{name} not found in symbol table: {self._get_symtable_name()}")
 
     def get(self, name):
         if name in self.env:
             return self.env[name]
-
         elif self.parent is not None:
             return self.parent.get(name)
-
         else:
-            return None
+            raise Exception(f"{name} not found in symbol table: {self._get_symtable_name()}")
 
-    def write(self, name, symbol):
-        self.env[name] = symbol
+    def _get_symtable_name(self):
+        if self.parent == None:
+            return self.name
+        else:
+            return f"{self.parent._get_symtable_name()}.{self.name}"
 
-    # a.append => list.append
-    def _original_func_name(self, name):
-        splitted_name = name.split(".")
-        for i, s in enumerate(splitted_name):
-            symbol = self.get(s)
-            if symbol:
-                ts = symbol.reveal()
-                # typing.Dict => dict
-                try:
-                    ts = ts.__origin__.__name__.lower()
-                except AttributeError:
-                    pass
-                splitted_name[i] = ts
-        return ".".join(splitted_name)
+    def print(self, level=0):
+        indent = '    ' * level
+        print(f"{indent}-----{level}-----")
+
+        if self.parent:
+            print(f"{indent}Symbol Table: {self.name}")
+            print(f"{indent}Parent Table: {self.parent.name}")
+        else:
+            print(f"{indent}Symbol Table: {self.name}")
+
+        for k, v in self.env.items():
+            if isinstance(v, SymTable):
+                print(f"{indent}    {k}:")
+                v.print(level + 1)
+            else:
+                print(f"{indent}    {k}: {TypeWrapper.reveal_type_var(v.reveal())}")
+
+        for c in self.childs:
+            self.childs[c].print(level + 1)
+
+        print(f"{indent}-----{level}-----")
+
