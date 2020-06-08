@@ -105,7 +105,7 @@ class CodeGenerator(ast.NodeTransformer):
         if t is type(None):
             return ast.Name('None')
         elif hasattr(t, "__name__"):
-            return t.__name__
+            return ast.Name(t.__name__)
         # typing type
         elif hasattr(t, "_name"):
             return ast.Name(str(t))
